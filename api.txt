@@ -1,0 +1,324 @@
+FUNCTION: Get Camera Info (All)
+URL: GET https://restapi.spypoint.com/api/v3/camera/all
+RESPONSE:
+[
+  {
+  "activationDate": "2025-06-10T14:59:06.504Z",
+  "commands": {
+    "takePhoto": {
+      "isSet": false,
+      "label": "request",
+      "name": "takePhoto",
+      "requires": [
+        {
+          "name": "operationMode",
+          "value": "instant"
+        },
+        {
+          "name": "captureMode",
+          "value": "photo"
+        }
+      ],
+      "type": "button"
+    },
+    "takeVideo": {
+      "isSet": false,
+      "label": "request",
+      "name": "takeVideo",
+      "requires": [
+        {
+          "name": "operationMode",
+          "value": "instant"
+        },
+        {
+          "name": "captureMode",
+          "value": "video"
+        }
+      ],
+      "type": "button"
+    }
+  },
+  "config": {
+    "batteryType": "AUTO",
+    "capture": false,
+    "captureMode": "video",
+    "dateFormat": "mdy",
+    "edgeInference": false,
+    "encryption": false,
+    "factory": false,
+    "gps": true,
+    "image": {
+      "jpegOptim": {
+        "dayTargetSize": 500,
+        "nightTargetSize": 500,
+        "triggerSize": 60
+      },
+      "quality": {
+        "qFactorDay": 50,
+        "qFactorNight": 50,
+        "resizeMethod": 1
+      },
+      "transmit": {
+        "maxHDSize": 1024,
+        "maxHDVideoSize": 51200,
+        "maxSize": 512,
+        "minHDSize": 5,
+        "minHDVideoSize": 500,
+        "minSize": 1
+      }
+    },
+    "irIntensity": "lowglow",
+    "logLevel": "info",
+    "motionDelay": 60,
+    "multiShot": 1,
+    "name": "Pond",
+    "operationMode": "standard",
+    "quality": "high",
+    "schedule": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "sensibility": {
+      "high": 15,
+      "level": "medium",
+      "low": 70,
+      "medium": 40
+    },
+    "smallPicWidth": 720,
+    "streamAllowed": true,
+    "streamEnabled": true,
+    "temperatureUnit": "F",
+    "timeFormat": 12,
+    "timeLapse": 3600,
+    "transmitAuto": true,
+    "transmitFormat": "full",
+    "transmitFreq": 6,
+    "transmitTime": {
+      "hour": 0,
+      "minute": 0
+    },
+    "transmitUser": true
+  },
+  "creationDate": "2025-06-10T14:59:06.504Z",
+  "dataMatrixKey": "ZUYZUMWL2YG",
+  "hdSince": "2025-06-10T09:00:53.000Z",
+  "id": "6848483aecf1b7daf6841ef9",
+  "isCellular": true,
+  "status": {
+    "activePowerSource": 0,
+    "batteries": [
+      0,
+      0,
+      72
+    ],
+    "batteryType": "SOLAR",
+    "capability": {
+      "hdRequest": true,
+      "video": true
+    },
+    "coordinates": [
+      {
+        "dateTime": "2026-06-03T04:00:40.000Z",
+        "geohash": "c80c4j13kf15",
+        "latitude": "N45 12.208380",
+        "longitude": "W111 21.330000",
+        "position": {
+          "coordinates": [
+            -111.3555,
+            45.203473
+          ],
+          "type": "Point"
+        }
+      }
+    ],
+    "installDate": "2026-06-03T04:00:40.000Z",
+    "lastUpdate": "2026-06-03T04:00:40.000Z",
+    "memory": {
+      "size": 28782,
+      "used": 1540
+    },
+    "model": "FLEX-S-DARK",
+    "modemFirmware": "EG91NAFBR05A07M4G",
+    "notifications": [],
+    "powerSources": [
+      {
+        "location": "INTERNAL",
+        "percentage": 72,
+        "type": "SOLAR",
+        "voltage": 4206
+      }
+    ],
+    "signal": {
+      "bar": 3,
+      "dBm": -108,
+      "mcc": 311,
+      "mnc": 480,
+      "processed": {
+        "bar": 3,
+        "level": "medium",
+        "lowSignal": false,
+        "percentage": 90
+      },
+      "type": "LTE"
+    },
+    "sim": "89882390000944497661",
+    "temperature": {
+      "unit": "F",
+      "value": 36
+    },
+    "version": "1.4.0-2-gb74a16f"
+  },
+  "subscriptions": [
+    {
+      "cameraId": "6848483aecf1b7daf6841ef9",
+      "currency": "USD",
+      "endDateBillingCycle": "2026-06-30T23:59:59.999Z",
+      "externalId": null,
+      "hdPhotoCount": 0,
+      "id": "",
+      "isActive": true,
+      "isAutoRenew": false,
+      "isFree": true,
+      "isTrial": false,
+      "monthEndBillingCycle": "2026-06-30T23:59:59.999Z",
+      "paymentFrequency": "month_by_month",
+      "paymentStatus": "active",
+      "photoCount": 15,
+      "photoLimit": 250,
+      "plan": {
+        "historyDays": {},
+        "id": "Basic",
+        "isActive": true,
+        "isDowngradable": false,
+        "isFree": true,
+        "isSelectable": true,
+        "isUpgradable": true,
+        "name": "Basic",
+        "photoCountPerMonth": 250,
+        "pricePerMonthIfPaidAnnually": 4,
+        "pricePerMonthIfPaidAnnuallyInsidersClub": 0,
+        "pricePerMonthIfPaidPerMonth": 5,
+        "pricePerMonthIfPaidPerMonthInsidersClub": 0,
+        "pricePerMonthIfPaidPerYear": 4,
+        "pricePerYear": 48,
+        "pricePerYearInsidersClub": 48,
+        "rebateIfPaidAnnually": 20,
+        "rebatePercentageInsidersClub": 0,
+        "showBanner": "insidersBasic"
+      },
+      "startDateBillingCycle": "2026-06-01T00:00:00.000Z",
+      "streamingLimit": 0,
+      "streamingUsed": 0
+    }
+  ],
+  "ucid": "866229074104033",
+  "user": "5f009a764c243a001590ea66"
+},
+]
+
+FUNCTION: Get Photo Info (All)
+URL: POST https://restapi.spypoint.com/api/v3/photo/all
+PAYLOAD:
+{
+    "camera": [
+        "669d86e4e28516a859ce52d3"
+    ],
+    "dateEnd": "2026-05-20 23:59:59",
+    "limit": 100,
+    "mediaTypes": [],
+    "species": [],
+    "timeOfDay": [],
+    "customTags": [],
+    "dateStart": "2026-05-01 00:00:00"
+}
+RESPONSE:
+{
+    "cameraId": null,
+    "cameraIds": [
+        "669d86e4e28516a859ce52d3"
+    ],
+    "countPhotos": 100,
+    "photos": [
+        {
+            "camera": "669d86e4e28516a859ce52d3",
+            "date": "2026-05-27T14:00:37.867Z",
+            "id": "6a16f905bba401404d164b28",
+            "large": {
+                "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151749Z&X-Amz-Expires=86400&X-Amz-Signature=59305c53ffb2d3dc769cae4e5337cd456e50c9300037ec5408061f08b389ef14&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                "verb": "GET",
+                "headers": []
+            },
+            "medium": {
+                "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_M_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151749Z&X-Amz-Expires=86400&X-Amz-Signature=4307f60205dd445ac7a690575936aeeb4e05221ecec5e7919325e5efd3af6d8d&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                "verb": "GET",
+                "headers": []
+            },
+            "originDate": "2026-05-27T06:00:09.000Z",
+            "originName": "VID0951.TGZ",
+            "originSize": 54389,
+            "preview": [
+                {
+                    "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                    "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151750Z&X-Amz-Expires=86400&X-Amz-Signature=ec71684145310d6ee420d4161504623cdb9696a604e7b9301b82ce563de16216&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                    "verb": "GET",
+                    "headers": []
+                },
+                {
+                    "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                    "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_2_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151750Z&X-Amz-Expires=86400&X-Amz-Signature=c49a733bd8bef3edc04b339d81f906eea6c6272af71f20345ee5b8b29ebb4c6f&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                    "verb": "GET",
+                    "headers": []
+                },
+                {
+                    "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                    "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_3_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151750Z&X-Amz-Expires=86400&X-Amz-Signature=6a85a73e162030ad5f72c77b4e60c61e187b3079a8f30605b9d48ceb50b41af3&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                    "verb": "GET",
+                    "headers": []
+                }
+            ],
+            "small": {
+                "host": "spypoint-production-account-ehcpvywr.s3.us-east-1.amazonaws.com",
+                "path": "5f009a764c243a001590ea66/669d86e4e28516a859ce52d3/20260527/VID0951_S_2026052714003SeGH.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4TENZYKLZ2QLZNPE%2F20260527%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260527T151749Z&X-Amz-Expires=86400&X-Amz-Signature=d2bf75304c5b1a8509dc9d64af22e079a7d5f65c34060b9297c4904730d554bd&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+                "verb": "GET",
+                "headers": []
+            },
+            "tag": [
+                "deer",
+                "day",
+                "preview"
+            ]
+        },
+
+URL: POST https://restapi.spypoint.com/api/v3/photo/video/6500b4c734407e4668659f17/6a2abf8da3fbac5387019c8b
+Payload:
+{"quality":"hd"}
+
+
