@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Spypoint",
+      "invalid_auth": "Invalid email or password",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Reauthentication was successful"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "signal_strength": {
+        "name": "Signal strength"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "memory_used": {
+        "name": "Memory used"
+      },
+      "sd_card_used": {
+        "name": "SD card used"
+      },
+      "photo_count": {
+        "name": "Photos used this cycle"
+      },
+      "photo_limit": {
+        "name": "Photo limit"
+      },
+      "last_update": {
+        "name": "Last update"
+      },
+      "alarms": {
+        "name": "Alarms"
+      }
+    },
+    "button": {
+      "take_photo": {
+        "name": "Take photo"
+      },
+      "take_video": {
+        "name": "Take video"
+      },
+      "capture_at_sync": {
+        "name": "Capture at next sync"
+      }
+    },
+    "image": {
+      "latest_photo": {
+        "name": "Latest photo"
+      }
+    }
+  }
+}
