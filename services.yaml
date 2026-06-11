@@ -1,0 +1,57 @@
+get_photos:
+  name: Get photos
+  description: Fetch photo metadata from Spypoint for one or all cameras.
+  fields:
+    config_entry_id:
+      required: true
+      example: "0123456789abcdef0123456789abcdef"
+      selector:
+        config_entry:
+          integration: spypoint
+    device_id:
+      required: false
+      example: "0123456789abcdef0123456789abcdef"
+      selector:
+        device:
+          filter:
+            - integration: spypoint
+    date_start:
+      required: false
+      example: "2026-05-01T00:00:00"
+      selector:
+        datetime:
+    date_end:
+      required: false
+      example: "2026-05-20T23:59:59"
+      selector:
+        datetime:
+    limit:
+      required: false
+      default: 20
+      example: 20
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+
+request_hdvideo:
+  name: Request HD video
+  description: Request an HD version of a photo or video from Spypoint.
+  fields:
+    config_entry_id:
+      required: true
+      example: "0123456789abcdef0123456789abcdef"
+      selector:
+        config_entry:
+          integration: spypoint
+    camera_id:
+      required: true
+      example: "6848483aecf1b7daf6841ef9"
+      selector:
+        text:
+    photo_id:
+      required: true
+      example: "6a16f905bba401404d164b28"
+      selector:
+        text:
