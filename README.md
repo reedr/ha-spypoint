@@ -37,6 +37,8 @@ Fetch photo metadata from the Spypoint API. Does not download image files.
 | `date_start` | no | Start of date range (defaults to 7 days before `date_end`) |
 | `date_end` | no | End of date range (defaults to now) |
 | `limit` | no | Max photos to return (1–1000, default 20) |
+| `media_types` | no | Media types for the API `mediaTypes` filter: `hdphoto`, `hdvideo`, `preview` (default `[]`) |
+| `species` | no | Species for the API `species` filter: `buck`, `bear`, `coyote`, `deer`, `humanactivity`, `moose`, `turkey`, `wildboar` (default `[]`) |
 
 Example:
 
@@ -48,6 +50,12 @@ data:
   date_start: "2026-05-01T00:00:00"
   date_end: "2026-05-20T23:59:59"
   limit: 50
+  media_types:
+    - hdphoto
+    - hdvideo
+  species:
+    - deer
+    - buck
 response_variable: photos
 ```
 

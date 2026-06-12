@@ -277,6 +277,8 @@ class SpypointDevice:
         limit: int | None = None,
         date_start: datetime | None = None,
         date_end: datetime | None = None,
+        media_types: list[str] | None = None,
+        species: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Return recent photos for the given cameras."""
         await self.login()
@@ -291,8 +293,8 @@ class SpypointDevice:
             "dateStart": date_start.strftime("%Y-%m-%d %H:%M:%S"),
             "dateEnd": date_end.strftime("%Y-%m-%d %H:%M:%S"),
             "limit": limit or DEFAULT_PHOTOS_LIMIT,
-            "mediaTypes": [],
-            "species": [],
+            "mediaTypes": media_types or [],
+            "species": species or [],
             "timeOfDay": [],
             "customTags": [],
         }
