@@ -35,18 +35,20 @@ class SpypointGalleryCard extends HTMLElement {
       response_key: 'photos',
       size: 'large',
       max_photos: 1000,
+      hover_interval: 300,    // ms per frame when cycling a preview on hover
       request_service: 'spypoint.request_hdvideo',
       service_data: {},
       ...config,
     };
     this._photos = [];
     this._error = null;
+    this._hoverTimer = null;
     // Control state
     this._selectedCamera = '';   // '' = all cameras; otherwise an HA device_id
-    this._newOnly = false;
+    this._newOnly = true;
     this._taggedOnly = false;    // only photos with a real (non-housekeeping) tag
     this._videoOnly = false;     // only photos that have an HD video
-    const baseLimit = Number((this._config.service_data && this._config.service_data.limit) || 20);
+    const baseLimit = Number((this._config.service_data && this._config.service_data.limit) || 48);
     this._limit = Math.min(baseLimit, this._config.max_photos);
     this._render();
   }
@@ -100,6 +102,7 @@ class SpypointGalleryCard extends HTMLElement {
     data.limit = this._limit;
     if (this._selectedCamera) data.device_id = this._selectedCamera; else delete data.device_id;
     if (this._newOnly) data.date_start = this._fourHourBoundary(); else delete data.date_start;
+    if (this._videoOnly) data.media_types = ['hdvideo']; else delete data.media_types;
     try {
       const result = await this._hass.callService(
         domain, service, data, undefined, false, true, // returnResponse
@@ -148,7 +151,7 @@ class SpypointGalleryCard extends HTMLElement {
     btn.disabled = true;
     btn.classList.add('busy');
     try {
-      await this._hass.callService(domain, service, data);
+      await this._hass.callService(domain, service, data, undefined, false, true); // returnResponse
       btn.classList.remove('busy', 'req');
       btn.classList.add('pending');
       if (icon) icon.setAttribute('icon', 'mdi:progress-clock');
@@ -162,22 +165,90 @@ class SpypointGalleryCard extends HTMLElement {
     }
   }
 
-  _playVideo(url) {
+  _lightbox(contentHTML, onReady, onClose) {
     const overlay = document.createElement('div');
     overlay.style.cssText =
       'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);' +
       'display:flex;align-items:center;justify-content:center;padding:24px;';
-    overlay.innerHTML =
-      `<video src="${url}" controls autoplay playsinline ` +
-      'style="max-width:100%;max-height:100%;border-radius:8px;"></video>' +
+    overlay.innerHTML = contentHTML +
       '<button aria-label="Close" style="position:absolute;top:16px;right:20px;' +
       'font-size:32px;line-height:1;background:none;border:none;color:#fff;cursor:pointer;">&times;</button>';
     const onKey = (e) => { if (e.key === 'Escape') close(); };
-    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const close = () => {
+      if (onClose) onClose();
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     overlay.querySelector('button').onclick = close;
     document.addEventListener('keydown', onKey);
     document.body.appendChild(overlay);
+    if (onReady) onReady(overlay);
+  }
+
+  _playVideo(url) {
+    this._lightbox(
+      `<video src="${url}" controls autoplay playsinline ` +
+      'style="max-width:100%;max-height:100%;border-radius:8px;"></video>');
+  }
+
+  _showImage(url) {
+    this._lightbox(
+      `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:8px;" />`);
+  }
+
+  _playSlideshow(frames) {
+    let timer = null;
+    this._lightbox(
+      `<img class="sgc-slide" src="${frames[0]}" ` +
+      'style="max-width:100%;max-height:100%;border-radius:8px;" />',
+      (overlay) => {
+        frames.forEach((f) => { const im = new Image(); im.src = f; }); // preload
+        const img = overlay.querySelector('.sgc-slide');
+        let i = 0;
+        timer = setInterval(() => { i = (i + 1) % frames.length; img.src = frames[i]; }, 1000);
+      },
+      () => { if (timer) clearInterval(timer); });
+  }
+
+  _frameSrc(f) {
+    if (!f) return '';
+    if (typeof f === 'string') {
+      return /^(https?:|\/|data:)/.test(f) ? f : `data:image/jpeg;base64,${f}`;
+    }
+    if (f.host || f.path) return this._join(f.host, f.path);
+    if (f.url) return f.url;
+    if (f.path) return f.path;
+    return '';
+  }
+
+  // Resolve a preview's frames to a list of image URLs. `photo.preview` is an
+  // array of {host,path} entries (same shape as `large`/`hdVideo`). A
+  // configurable `preview_key` overrides the field name if ever needed.
+  _previewFrames(photo) {
+    if (!photo) return [];
+    const key = this._config.preview_key;
+    const candidates = key
+      ? [photo[key]]
+      : [photo.preview, photo.frames, photo.previews, photo.urls, photo.images];
+    for (const c of candidates) {
+      if (Array.isArray(c) && c.length) {
+        return c.map((f) => this._frameSrc(f)).filter(Boolean);
+      }
+    }
+    return [];
+  }
+
+  _openLightbox(photo) {
+    if (!photo) return;
+    if (photo.hdVideo) {
+      this._playVideo(this._join(photo.hdVideo.host, photo.hdVideo.path));
+      return;
+    }
+    const frames = this._previewFrames(photo);
+    if (frames.length > 1) { this._playSlideshow(frames); return; }
+    if (frames.length === 1) { this._showImage(frames[0]); return; }
+    this._showImage(this._toSrc(photo)); // otherwise: the large image
   }
 
   _render() {
@@ -195,8 +266,7 @@ class SpypointGalleryCard extends HTMLElement {
     const HOUSEKEEPING = new Set(['day', 'night', 'preview', 'hdvideopend', 'hdvideo']);
     const tagsOf = (p) => ((p && (p.tag || p.tags)) || []).map((x) => String(x).toLowerCase());
     const isTagged = (p) => tagsOf(p).some((t) => !HOUSEKEEPING.has(t)); // has a real content tag
-    const hasVideo = (p) => !!(p && p.hdVideo) || tagsOf(p).includes('hdvideo');
-    const passes = (p) => (!this._taggedOnly || isTagged(p)) && (!this._videoOnly || hasVideo(p));
+    const passes = (p) => (!this._taggedOnly || isTagged(p));
     const shownCount = this._photos.filter(passes).length;
 
     const items = this._photos.map((p, i) => {
@@ -219,8 +289,10 @@ class SpypointGalleryCard extends HTMLElement {
         ? `<button class="play" data-idx="${i}" title="Play HD video"><ha-icon icon="mdi:play-circle"></ha-icon></button>`
         : '';
 
-      return `<figure>${corner}${playBadge}<img src="${src}" loading="lazy" />${caption}</figure>`;
+      return `<figure data-idx="${i}">${corner}${playBadge}<img src="${src}" loading="lazy" />${caption}</figure>`;
     }).join('');
+
+    if (this._hoverTimer) { clearInterval(this._hoverTimer); this._hoverTimer = null; }
 
     this._root.innerHTML = `
       <style>
@@ -235,7 +307,11 @@ class SpypointGalleryCard extends HTMLElement {
         .controls .limval { min-width:2.6em; text-align:right; font-variant-numeric:tabular-nums; }
         .grid { display:grid; gap:8px; padding:0 16px 16px; align-items:start;
                 grid-template-columns: repeat(${c.columns}, 1fr); }
-        figure { margin:0; position:relative; }
+        @media (max-width: 600px) {
+          .grid { grid-template-columns: repeat(${this._config.mobile_columns || 2}, 1fr); }
+          .dl { width:26px; height:26px; --mdc-icon-size:16px; bottom:5px; right:5px; }
+        }
+        figure { margin:0; position:relative; cursor:pointer; }
         img { width:100%; height:auto; display:block; border-radius:8px;
               background: var(--secondary-background-color); }
         .cap { font-size:.8rem; color:var(--secondary-text-color); margin-top:4px; }
@@ -292,7 +368,7 @@ class SpypointGalleryCard extends HTMLElement {
     if (tag) tag.onchange = () => { this._taggedOnly = tag.checked; this._render(); };
 
     const vid = this._root.querySelector('.vidchk');
-    if (vid) vid.onchange = () => { this._videoOnly = vid.checked; this._render(); };
+    if (vid) vid.onchange = () => { this._videoOnly = vid.checked; this._fetch(); };
 
     const sl = this._root.querySelector('.lim');
     const lv = this._root.querySelector('.limval');
@@ -308,10 +384,35 @@ class SpypointGalleryCard extends HTMLElement {
       };
     });
     this._root.querySelectorAll('.play').forEach((b) => {
-      b.onclick = () => {
+      b.onclick = (e) => {
+        e.stopPropagation();
         const p = this._photos[Number(b.dataset.idx)];
         if (p && p.hdVideo) this._playVideo(this._join(p.hdVideo.host, p.hdVideo.path));
       };
+    });
+    this._root.querySelectorAll('figure[data-idx]').forEach((fig) => {
+      const photo = this._photos[Number(fig.dataset.idx)];
+      fig.onclick = () => this._openLightbox(photo);
+
+      const frames = this._previewFrames(photo);
+      if (frames.length > 1) {
+        const img = fig.querySelector('img');
+        const orig = img.getAttribute('src');
+        let idx = 0;
+        fig.addEventListener('mouseenter', () => {
+          frames.forEach((f) => { const im = new Image(); im.src = f; }); // preload
+          if (this._hoverTimer) clearInterval(this._hoverTimer);
+          idx = 0;
+          this._hoverTimer = setInterval(() => {
+            idx = (idx + 1) % frames.length;
+            img.src = frames[idx];
+          }, this._config.hover_interval);
+        });
+        fig.addEventListener('mouseleave', () => {
+          if (this._hoverTimer) { clearInterval(this._hoverTimer); this._hoverTimer = null; }
+          img.src = orig; // restore the static thumbnail
+        });
+      }
     });
   }
 
