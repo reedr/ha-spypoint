@@ -12,7 +12,7 @@ Custom component integration for [Spypoint](https://www.spypoint.com) cellular t
 
 You will need your Spypoint account email and password. The integration connects to the Spypoint cloud API and discovers all cameras linked to your account.
 
-Camera status is refreshed every 30 minutes by default. Change this under **Configure → Refresh interval (minutes)** on the integration.
+Camera status is refreshed every 30 minutes by default. Change this under **Configure → Refresh interval (minutes)** on the integration. When the interval is 30 minutes or a multiple thereof, refreshes are scheduled at 5 minutes past the hour (for example, :05 and :35 for a 30-minute interval).
 
 ## Features
 

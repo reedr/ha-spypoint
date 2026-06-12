@@ -23,8 +23,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
-from .device import parse_spypoint_timestamp
-from .entity import SpypointEntity
+from .entity import (
+    SpypointEntity,
+    last_update,
+    photo_count,
+    photo_limit,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,28 +84,17 @@ def _sd_card_used_percent_value(camera: dict[str, Any]) -> float | None:
 
 def _photo_count_value(camera: dict[str, Any]) -> int | None:
     """Extract photos used in the current billing cycle."""
-    subscriptions = camera.get("subscriptions") or []
-    if not subscriptions:
-        return None
-    if (value := subscriptions[0].get("photoCount")) is None:
-        return None
-    return int(value)
+    return photo_count(camera)
 
 
 def _photo_limit_value(camera: dict[str, Any]) -> int | None:
     """Extract monthly photo limit."""
-    subscriptions = camera.get("subscriptions") or []
-    if not subscriptions:
-        return None
-    if (value := subscriptions[0].get("photoLimit")) is None:
-        return None
-    return int(value)
+    return photo_limit(camera)
 
 
 def _last_update_value(camera: dict[str, Any]) -> datetime | None:
     """Extract the last camera status update time."""
-    status = camera.get("status") or {}
-    return parse_spypoint_timestamp(status.get("lastUpdate"))
+    return last_update(camera)
 
 
 def _notifications(camera: dict[str, Any]) -> list[Any]:
