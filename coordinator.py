@@ -71,6 +71,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_setup(self) -> None:
         """Perform one-time setup before the first refresh."""
+        await self.device.async_setup()
         await self.device.login()
 
     async def _async_update_data(self) -> dict[str, Any]:
