@@ -40,4 +40,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpypointConfigEntry) -> 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SpypointConfigEntry) -> bool:
     """Unload a config entry."""
+    if entry.runtime_data is not None:
+        await entry.runtime_data.device.async_close()
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)

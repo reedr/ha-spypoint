@@ -35,8 +35,12 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate credentials and return account metadata."""
     device = SpypointDevice(hass, data[CONF_USERNAME], data[CONF_PASSWORD])
-    await device.login()
-    cameras = await device.get_cameras()
+    try:
+        await device.async_setup()
+        await device.login()
+        cameras = await device.get_cameras()
+    finally:
+        await device.async_close()
     if not device.user_id:
         raise CannotConnect
     return {

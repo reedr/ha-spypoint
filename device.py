@@ -165,15 +165,35 @@ class SpypointDevice:
         self._hass = hass
         self._username = username
         self._password = password
-        self._client = httpx.AsyncClient(
-            base_url=API_BASE,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
-            timeout=30.0,
-        )
+        self._client: httpx.AsyncClient | None = None
         self._token: str | None = None
         self._user_id: str | None = None
         self._account_title: str | None = None
         self._response: SpypointDeviceResponse | None = None
+
+    def _create_client(self) -> httpx.AsyncClient:
+        """Create the HTTP client."""
+        return httpx.AsyncClient(
+            base_url=API_BASE,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=30.0,
+        )
+
+    async def async_setup(self) -> None:
+        """Create the HTTP client without blocking the event loop."""
+        await self._ensure_client()
+
+    async def async_close(self) -> None:
+        """Close the HTTP client."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """Return the HTTP client, creating it on first use."""
+        if self._client is None:
+            self._client = await self._hass.async_add_executor_job(self._create_client)
+        return self._client
 
     @property
     def user_id(self) -> str | None:
@@ -211,7 +231,8 @@ class SpypointDevice:
         while tries > 0:
             try:
                 _LOGGER.debug("-> %s %s", method, path)
-                response = await self._client.request(
+                client = await self._ensure_client()
+                response = await client.request(
                     method, path, json=json, headers=headers
                 )
                 self._response = SpypointDeviceResponse(response)
