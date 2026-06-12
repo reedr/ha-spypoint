@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
-    EVENT_PHOTO_COUNT_CHANGED,
+    EVENT_NEW_PHOTOS,
     get_update_interval_seconds,
     next_aligned_update_time,
     should_align_update_interval,
@@ -91,17 +91,18 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except SpypointAuthError as err:
                 raise ConfigEntryAuthFailed from err
 
-        self._async_fire_photo_count_events(cameras)
+        self._async_fire_new_photos_event(cameras)
 
         return {"cameras": cameras, "latest_photos": latest_photos}
 
     @callback
-    def _async_fire_photo_count_events(
+    def _async_fire_new_photos_event(
         self, cameras: dict[str, dict[str, Any]]
     ) -> None:
-        """Fire events when a camera photo count changes."""
+        """Fire an event when one or more cameras have new photos."""
         entity_registry = er.async_get(self.hass)
         device_registry = dr.async_get(self.hass)
+        changed_cameras: list[dict[str, Any]] = []
 
         for camera_id, camera in cameras.items():
             new_count = photo_count(camera)
@@ -122,8 +123,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             last_update_time = last_update(camera)
 
-            self.hass.bus.async_fire(
-                EVENT_PHOTO_COUNT_CHANGED,
+            changed_cameras.append(
                 {
                     "entity_id": count_entity_id,
                     "camera_name": camera_name(camera),
@@ -133,14 +133,22 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "last_update": (
                         last_update_time.isoformat() if last_update_time else None
                     ),
-                },
+                }
             )
             _LOGGER.debug(
-                "Photo count changed for %s: %s -> %s",
+                "New photos for %s: %s -> %s",
                 camera_name(camera),
                 previous_count,
                 new_count,
             )
+
+        if not changed_cameras:
+            return
+
+        self.hass.bus.async_fire(
+            EVENT_NEW_PHOTOS,
+            {"cameras": changed_cameras},
+        )
 
     @callback
     def _schedule_refresh(self) -> None:
@@ -172,5 +180,6 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         next_refresh = int(self.hass.loop.time()) + max(0, delay)
         self._unsub_refresh = self.hass.loop.call_at(
-            next_refresh, self.__wrap_handle_refresh_interval
+            next_refresh,
+            self._DataUpdateCoordinator__wrap_handle_refresh_interval,
         ).cancel
