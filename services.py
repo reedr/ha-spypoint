@@ -19,8 +19,12 @@ from .const import (
     ATTR_DATE_START,
     ATTR_DEVICE_ID,
     ATTR_LIMIT,
+    ATTR_MEDIA_TYPES,
     ATTR_PHOTO_ID,
+    ATTR_SPECIES,
     DEFAULT_PHOTOS_LIMIT,
+    MEDIA_TYPES,
+    SPECIES,
     DEFAULT_PHOTOS_LOOKBACK_DAYS,
     DOMAIN,
     SERVICE_GET_PHOTOS,
@@ -37,6 +41,12 @@ SERVICE_GET_PHOTOS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DATE_END): cv.datetime,
         vol.Optional(ATTR_LIMIT, default=DEFAULT_PHOTOS_LIMIT): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=1000)
+        ),
+        vol.Optional(ATTR_MEDIA_TYPES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(MEDIA_TYPES)]
+        ),
+        vol.Optional(ATTR_SPECIES, default=[]): vol.All(
+            cv.ensure_list, [vol.In(SPECIES)]
         ),
     }
 )
@@ -144,6 +154,8 @@ async def async_get_photos(call: ServiceCall) -> ServiceResponse:
             limit=call.data[ATTR_LIMIT],
             date_start=date_start,
             date_end=date_end,
+            media_types=call.data[ATTR_MEDIA_TYPES],
+            species=call.data[ATTR_SPECIES],
         )
     except SpypointAuthError as err:
         raise HomeAssistantError("Spypoint authentication failed") from err

@@ -24,6 +24,22 @@ ATTR_PHOTO_ID = "photo_id"
 ATTR_DATE_START = "date_start"
 ATTR_DATE_END = "date_end"
 ATTR_LIMIT = "limit"
+ATTR_MEDIA_TYPES = "media_types"
+ATTR_SPECIES = "species"
+
+MEDIA_TYPES = frozenset({"hdphoto", "hdvideo", "preview"})
+SPECIES = frozenset(
+    {
+        "buck",
+        "bear",
+        "coyote",
+        "deer",
+        "humanactivity",
+        "moose",
+        "turkey",
+        "wildboar",
+    }
+)
 
 DEFAULT_PHOTOS_LIMIT = 20
 DEFAULT_PHOTOS_LOOKBACK_DAYS = 7
