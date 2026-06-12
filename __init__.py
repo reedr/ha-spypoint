@@ -10,7 +10,12 @@ from .coordinator import SpypointConfigEntry, SpypointCoordinator
 from .device import SpypointDevice
 from .services import async_setup as async_setup_services
 
-_PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON, Platform.IMAGE]
+_PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BUTTON,
+    Platform.IMAGE,
+    Platform.DEVICE_TRACKER,
+]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

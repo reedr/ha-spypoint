@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEFAULT_UPDATE_INTERVAL_SECONDS
+from .const import get_update_interval_seconds
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,7 +34,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name="Spypoint Coordinator",
             config_entry=config_entry,
-            update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL_SECONDS),
+            update_interval=timedelta(
+                seconds=get_update_interval_seconds(config_entry)
+            ),
             always_update=False,
         )
         self._device = device

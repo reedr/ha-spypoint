@@ -12,10 +12,13 @@ Custom component integration for [Spypoint](https://www.spypoint.com) cellular t
 
 You will need your Spypoint account email and password. The integration connects to the Spypoint cloud API and discovers all cameras linked to your account.
 
+Camera status is refreshed every 30 minutes by default. Change this under **Configure → Refresh interval (minutes)** on the integration.
+
 ## Features
 
 - One device per trail camera with battery, temperature, signal, and photo plan sensors
 - Latest photo image entity per camera, refreshed on each camera poll
+- GPS device tracker per camera using `status.coordinates`
 - On-demand photo and video request buttons (cameras that support instant mode)
 - Capture-at-next-sync button
 - `spypoint.get_photos` service to fetch photo metadata on demand

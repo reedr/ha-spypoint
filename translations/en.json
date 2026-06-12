@@ -23,6 +23,15 @@
       "reauth_successful": "Reauthentication was successful"
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval_minutes": "Refresh interval (minutes)"
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "battery": {
