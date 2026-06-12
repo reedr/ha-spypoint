@@ -123,6 +123,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 SENSOR_DOMAIN, DOMAIN, f"{camera_id}_photo_count"
             )
             last_update_time = last_update(camera)
+            new_photo_count = (
+                new_count if new_count < previous_count else new_count - previous_count
+            )
 
             changed_cameras.append(
                 {
@@ -130,6 +133,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "camera_name": camera_name(camera),
                     "device_id": device.id if device else None,
                     "photo_count": new_count,
+                    "new_photo_count": new_photo_count,
                     "photo_limit": photo_limit(camera),
                     "last_update": (
                         last_update_time.isoformat() if last_update_time else None
@@ -137,10 +141,11 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 }
             )
             _LOGGER.debug(
-                "New photos for %s: %s -> %s",
+                "New photos for %s: %s -> %s (%s new)",
                 camera_name(camera),
                 previous_count,
                 new_count,
+                new_photo_count,
             )
 
         if not changed_cameras:
