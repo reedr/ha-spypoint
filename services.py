@@ -36,7 +36,7 @@ SERVICE_GET_PHOTOS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DATE_START): cv.datetime,
         vol.Optional(ATTR_DATE_END): cv.datetime,
         vol.Optional(ATTR_LIMIT, default=DEFAULT_PHOTOS_LIMIT): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
+            vol.Coerce(int), vol.Range(min=1, max=1000)
         ),
     }
 )

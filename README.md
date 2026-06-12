@@ -33,7 +33,7 @@ Fetch photo metadata from the Spypoint API. Does not download image files.
 | `device_id` | no | A single Spypoint camera device id; omit for all cameras |
 | `date_start` | no | Start of date range (defaults to 7 days before `date_end`) |
 | `date_end` | no | End of date range (defaults to now) |
-| `limit` | no | Max photos to return (1–100, default 20) |
+| `limit` | no | Max photos to return (1–1000, default 20) |
 
 Example:
 
