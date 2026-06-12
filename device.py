@@ -53,6 +53,49 @@ def parse_spypoint_timestamp(value: str | None) -> datetime | None:
     return dt_util.as_local(parsed)
 
 
+_DMS_COORDINATE = re.compile(r"^([NSEW])\s*(\d+)\s+([\d.]+)$")
+
+
+def _parse_dms_coordinate(value: str) -> float | None:
+    """Parse a Spypoint DMS coordinate string."""
+    if not (match := _DMS_COORDINATE.match(value.strip())):
+        return None
+    direction, degrees, minutes = match.groups()
+    decimal = float(degrees) + float(minutes) / 60
+    if direction in ("S", "W"):
+        decimal = -decimal
+    return decimal
+
+
+def get_camera_coordinates(camera: dict[str, Any]) -> tuple[float, float] | None:
+    """Return latitude and longitude for a camera."""
+    status = camera.get("status") or {}
+    coordinates_list = status.get("coordinates")
+    if not isinstance(coordinates_list, list) or not coordinates_list:
+        return None
+
+    coordinate = coordinates_list[-1]
+    if not isinstance(coordinate, dict):
+        return None
+
+    position = coordinate.get("position") or {}
+    position_coordinates = position.get("coordinates")
+    if isinstance(position_coordinates, list) and len(position_coordinates) >= 2:
+        longitude, latitude = position_coordinates[0], position_coordinates[1]
+        return float(latitude), float(longitude)
+
+    latitude_value = coordinate.get("latitude")
+    longitude_value = coordinate.get("longitude")
+    if latitude_value is None or longitude_value is None:
+        return None
+
+    latitude = _parse_dms_coordinate(str(latitude_value))
+    longitude = _parse_dms_coordinate(str(longitude_value))
+    if latitude is None or longitude is None:
+        return None
+    return latitude, longitude
+
+
 class SpypointAuthError(HomeAssistantError):
     """Error to indicate invalid authentication."""
 
