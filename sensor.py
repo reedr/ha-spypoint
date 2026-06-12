@@ -23,12 +23,8 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
-from .entity import (
-    SpypointEntity,
-    last_update,
-    photo_count,
-    photo_limit,
-)
+from .camera_data import last_update, photo_count, photo_limit
+from .entity import SpypointEntity
 
 _LOGGER = logging.getLogger(__name__)
 
