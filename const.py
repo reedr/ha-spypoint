@@ -21,7 +21,7 @@ PATH_PHOTO_VIDEO = "/photo/video"
 SERVICE_GET_PHOTOS = "get_photos"
 SERVICE_REQUEST_HDVIDEO = "request_hdvideo"
 
-EVENT_PHOTO_COUNT_CHANGED = f"{DOMAIN}_photo_count_changed"
+EVENT_NEW_PHOTOS = f"{DOMAIN}_new_photos"
 
 ATTR_DEVICE_ID = "device_id"
 ATTR_CAMERA_ID = "camera_id"
