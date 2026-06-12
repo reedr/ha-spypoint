@@ -22,7 +22,7 @@ from .const import (
     should_align_update_interval,
 )
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
-from .entity import camera_name, last_update, photo_count, photo_limit
+from .camera_data import camera_name, last_update, photo_count, photo_limit
 
 _LOGGER = logging.getLogger(__name__)
 
