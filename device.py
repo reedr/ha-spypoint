@@ -118,15 +118,23 @@ class SpypointDeviceResponse:
         self._status_code = resp.status_code
         self._result: Any = None
 
-        if self._status_code == httpx.codes.OK:
-            if not resp.text:
-                self._result = {}
-                return
-            try:
-                self._result = resp.json()
-            except JSONDecodeError:
-                _LOGGER.error("JSON decode error")
-                self._status_code = httpx.codes.INTERNAL_SERVER_ERROR
+        if not self.is_success:
+            return
+
+        if not resp.text:
+            self._result = {}
+            return
+
+        try:
+            self._result = resp.json()
+        except JSONDecodeError:
+            _LOGGER.debug("Non-JSON success response from Spypoint API")
+            self._result = {}
+
+    @property
+    def is_success(self) -> bool:
+        """Return true for successful HTTP responses."""
+        return 200 <= self._status_code < 300
 
     @property
     def status_code(self) -> int:
@@ -141,7 +149,7 @@ class SpypointDeviceResponse:
     @property
     def has_result(self) -> bool:
         """Return true if the response body is valid."""
-        return self._status_code == httpx.codes.OK and self._result is not None
+        return self.is_success and self._result is not None
 
 
 class SpypointDevice:
@@ -218,7 +226,7 @@ class SpypointDevice:
                     tries -= 1
                     continue
 
-                return self._response.status_code == httpx.codes.OK
+                return self._response.is_success
 
             except httpx.HTTPError as exc:
                 _LOGGER.error("Request error (%s %s): %s", method, path, exc)
