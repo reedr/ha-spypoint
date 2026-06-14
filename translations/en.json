@@ -27,7 +27,8 @@
     "step": {
       "init": {
         "data": {
-          "scan_interval_minutes": "Refresh interval (minutes)"
+          "scan_interval_minutes": "Full refresh interval (minutes)",
+          "instant_scan_interval_minutes": "Instant camera refresh interval (minutes)"
         }
       }
     }

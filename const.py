@@ -50,6 +50,7 @@ SPECIES = frozenset(
 DEFAULT_PHOTOS_LIMIT = 20
 DEFAULT_PHOTOS_LOOKBACK_DAYS = 7
 DEFAULT_UPDATE_INTERVAL_SECONDS = 30 * 60
+DEFAULT_INSTANT_UPDATE_INTERVAL_SECONDS = 60
 COORDINATOR_UPDATE_INTERVAL_SECONDS = 60
 MIN_UPDATE_INTERVAL_SECONDS = 60
 MAX_UPDATE_INTERVAL_SECONDS = 24 * 60 * 60
@@ -58,13 +59,22 @@ REFRESH_ALIGN_INTERVAL = timedelta(minutes=30)
 
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
+CONF_INSTANT_SCAN_INTERVAL = "instant_scan_interval"
+CONF_INSTANT_SCAN_INTERVAL_MINUTES = "instant_scan_interval_minutes"
 
 
 def get_update_interval_seconds(config_entry: ConfigEntry) -> int:
-    """Return the configured coordinator update interval in seconds."""
+    """Return the configured full camera refresh interval in seconds."""
     if (interval := config_entry.options.get(CONF_SCAN_INTERVAL)) is not None:
         return int(interval)
     return DEFAULT_UPDATE_INTERVAL_SECONDS
+
+
+def get_instant_update_interval_seconds(config_entry: ConfigEntry) -> int:
+    """Return the configured instant camera refresh interval in seconds."""
+    if (interval := config_entry.options.get(CONF_INSTANT_SCAN_INTERVAL)) is not None:
+        return int(interval)
+    return DEFAULT_INSTANT_UPDATE_INTERVAL_SECONDS
 
 
 def should_align_update_interval(interval_seconds: int) -> bool:

@@ -19,6 +19,7 @@ from .const import (
     DOMAIN,
     EVENT_NEW_PHOTOS,
     REFRESH_ALIGN_OFFSET,
+    get_instant_update_interval_seconds,
     get_update_interval_seconds,
     should_align_update_interval,
 )
@@ -59,6 +60,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._photo_counts: dict[str, int | None] = {}
         self._new_capture_counts: dict[str, int] = {}
         self._last_full_refresh: datetime | None = None
+        self._last_instant_refresh: datetime | None = None
 
     @property
     def device(self) -> SpypointDevice:
@@ -106,6 +108,16 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return (now - self._last_full_refresh).total_seconds() >= interval_seconds
 
+    def _should_instant_refresh(self, now: datetime) -> bool:
+        """Return True when instant-mode cameras should be fetched."""
+        if self._last_instant_refresh is None:
+            return True
+
+        interval_seconds = get_instant_update_interval_seconds(self.config_entry)
+        return (
+            now - self._last_instant_refresh
+        ).total_seconds() >= interval_seconds
+
     async def _async_fetch_cameras(
         self,
     ) -> tuple[dict[str, dict[str, Any]], set[str]]:
@@ -116,10 +128,16 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Performing full camera refresh")
             cameras_list = await self.device.get_cameras()
             self._last_full_refresh = now
+            self._last_instant_refresh = now
             cameras = {
                 camera["id"]: camera for camera in cameras_list if camera.get("id")
             }
             return cameras, set(cameras)
+
+        if not self._should_instant_refresh(now):
+            _LOGGER.debug("Skipping instant camera refresh; interval not elapsed")
+            previous_cameras = (self.data or {}).get("cameras", {})
+            return dict(previous_cameras), set()
 
         previous_cameras = (self.data or {}).get("cameras", {})
         cameras = dict(previous_cameras)
@@ -131,6 +149,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if not instant_ids:
             _LOGGER.debug("Skipping camera refresh; no instant-mode cameras")
+            self._last_instant_refresh = now
             return cameras, set()
 
         _LOGGER.debug(
@@ -145,6 +164,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 cameras[camera_id] = camera
                 fetched_ids.add(camera_id)
 
+        self._last_instant_refresh = now
         return cameras, fetched_ids
 
     async def _async_update_data(self) -> dict[str, Any]:
