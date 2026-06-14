@@ -116,8 +116,8 @@ def _alarms_attributes(camera: dict[str, Any]) -> dict[str, Any]:
 class SpypointSensorEntityDescription(SensorEntityDescription):
     """Describe a Spypoint sensor entity."""
 
-    value_fn: Any
     entity_name: str
+    value_fn: Any | None = None
     attributes_fn: Any | None = None
 
 
@@ -174,6 +174,12 @@ SENSOR_DESCRIPTIONS: tuple[SpypointSensorEntityDescription, ...] = (
         translation_key="photo_count",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_photo_count_value,
+    ),
+    SpypointSensorEntityDescription(
+        key="new_captures",
+        entity_name="New captures",
+        translation_key="new_captures",
+        state_class=SensorStateClass.MEASUREMENT,
     ),
     SpypointSensorEntityDescription(
         key="photo_limit",
@@ -252,6 +258,8 @@ class SpypointSensor(SpypointEntity, SensorEntity):
     @property
     def native_value(self) -> datetime | int | float | None:
         """Return the sensor value."""
+        if self.entity_description.value_fn is None:
+            return self.coordinator.get_new_capture_count(self.camera_id)
         if not (camera := self.camera):
             return None
         return self.entity_description.value_fn(camera)

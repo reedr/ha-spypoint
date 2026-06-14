@@ -52,6 +52,9 @@
       "photo_count": {
         "name": "Photos used this cycle"
       },
+      "new_captures": {
+        "name": "New captures"
+      },
       "photo_limit": {
         "name": "Photo limit"
       },
