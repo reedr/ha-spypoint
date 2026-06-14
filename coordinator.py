@@ -84,17 +84,38 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed("Unable to reach Spypoint API") from err
 
         cameras = {camera["id"]: camera for camera in cameras_list if camera.get("id")}
-        latest_photos: dict[str, dict[str, Any] | None] = {}
+        previous_latest = (self.data or {}).get("latest_photos", {})
+        latest_photos = {
+            camera_id: previous_latest[camera_id]
+            for camera_id in cameras
+            if camera_id in previous_latest
+        }
+        cameras_needing_photos = self._camera_ids_needing_latest_photo(cameras)
 
-        if cameras:
+        if cameras_needing_photos:
             try:
-                latest_photos = await self.device.get_latest_photos(list(cameras))
+                fetched = await self.device.get_latest_photos(cameras_needing_photos)
             except SpypointAuthError as err:
                 raise ConfigEntryAuthFailed from err
+            latest_photos.update(fetched)
 
         self._async_fire_new_photos_event(cameras)
 
         return {"cameras": cameras, "latest_photos": latest_photos}
+
+    def _camera_ids_needing_latest_photo(
+        self, cameras: dict[str, dict[str, Any]]
+    ) -> list[str]:
+        """Return camera ids that should fetch a latest photo."""
+        camera_ids: list[str] = []
+        for camera_id, camera in cameras.items():
+            new_count = photo_count(camera)
+            previous_count = self._photo_counts.get(camera_id)
+            if previous_count is None:
+                camera_ids.append(camera_id)
+            elif new_count is not None and new_count != previous_count:
+                camera_ids.append(camera_id)
+        return camera_ids
 
     @callback
     def _async_fire_new_photos_event(
