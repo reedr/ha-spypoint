@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -15,14 +15,22 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    COORDINATOR_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
     EVENT_NEW_PHOTOS,
+    REFRESH_ALIGN_OFFSET,
     get_update_interval_seconds,
-    next_aligned_update_time,
     should_align_update_interval,
 )
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
-from .camera_data import camera_name, last_update, new_photo_count_for_event, photo_count, photo_limit
+from .camera_data import (
+    camera_name,
+    is_instant_mode,
+    last_update,
+    new_photo_count_for_event,
+    photo_count,
+    photo_limit,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,13 +52,12 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name="Spypoint Coordinator",
             config_entry=config_entry,
-            update_interval=timedelta(
-                seconds=get_update_interval_seconds(config_entry)
-            ),
+            update_interval=timedelta(seconds=COORDINATOR_UPDATE_INTERVAL_SECONDS),
             always_update=False,
         )
         self._device = device
         self._photo_counts: dict[str, int | None] = {}
+        self._last_full_refresh: datetime | None = None
 
     @property
     def device(self) -> SpypointDevice:
@@ -74,16 +81,69 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.device.async_setup()
         await self.device.login()
 
+    def _should_full_refresh(self, now: datetime) -> bool:
+        """Return True when all cameras should be fetched."""
+        if self._last_full_refresh is None:
+            return True
+
+        interval_seconds = get_update_interval_seconds(self.config_entry)
+
+        if should_align_update_interval(interval_seconds):
+            anchor = dt_util.start_of_local_day(now) + REFRESH_ALIGN_OFFSET
+            if now < anchor:
+                return False
+            elapsed = now - anchor
+            interval = timedelta(seconds=interval_seconds)
+            current_slot = anchor + (elapsed // interval) * interval
+            return self._last_full_refresh < current_slot
+
+        return (now - self._last_full_refresh).total_seconds() >= interval_seconds
+
+    async def _async_fetch_cameras(self) -> dict[str, dict[str, Any]]:
+        """Fetch camera data using full or incremental refresh."""
+        now = dt_util.now()
+
+        if self._should_full_refresh(now):
+            _LOGGER.debug("Performing full camera refresh")
+            cameras_list = await self.device.get_cameras()
+            self._last_full_refresh = now
+            return {
+                camera["id"]: camera for camera in cameras_list if camera.get("id")
+            }
+
+        previous_cameras = (self.data or {}).get("cameras", {})
+        cameras = dict(previous_cameras)
+        instant_ids = [
+            camera_id
+            for camera_id, camera in cameras.items()
+            if is_instant_mode(camera)
+        ]
+
+        if not instant_ids:
+            _LOGGER.debug("Skipping camera refresh; no instant-mode cameras")
+            return cameras
+
+        _LOGGER.debug(
+            "Refreshing %d instant-mode camera(s): %s",
+            len(instant_ids),
+            ", ".join(instant_ids),
+        )
+        fetched = await self.device.get_cameras_by_id(instant_ids)
+        for camera_id, camera in fetched.items():
+            if camera is not None:
+                cameras[camera_id] = camera
+
+        return cameras
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch camera and latest photo data from the Spypoint API."""
         try:
-            cameras_list = await self.device.get_cameras()
+            cameras = await self._async_fetch_cameras()
         except SpypointAuthError as err:
             raise ConfigEntryAuthFailed from err
         except SpypointConnectionError as err:
             raise UpdateFailed("Unable to reach Spypoint API") from err
 
-        cameras = {camera["id"]: camera for camera in cameras_list if camera.get("id")}
         previous_latest = (self.data or {}).get("latest_photos", {})
         latest_photos = {
             camera_id: previous_latest[camera_id]
@@ -176,37 +236,3 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             EVENT_NEW_PHOTOS,
             {"cameras": changed_cameras},
         )
-
-    @callback
-    def _schedule_refresh(self) -> None:
-        """Schedule a refresh, aligning to local :05 when interval is 30m-based."""
-        if self._update_interval_seconds is None:
-            return
-
-        if self.config_entry and self.config_entry.pref_disable_polling:
-            return
-
-        self._async_unsub_refresh()
-
-        update_interval = self._update_interval_seconds
-        if self._retry_after is not None:
-            update_interval = self._retry_after
-            self._retry_after = None
-
-        if should_align_update_interval(int(update_interval)):
-            now = dt_util.now()
-            next_refresh_time = next_aligned_update_time(now, int(update_interval))
-            delay = (next_refresh_time - now).total_seconds() + self._microsecond
-            _LOGGER.debug(
-                "Scheduling aligned refresh at %s (in %.1f seconds)",
-                next_refresh_time,
-                delay,
-            )
-        else:
-            delay = update_interval + self._microsecond
-
-        next_refresh = int(self.hass.loop.time()) + max(0, delay)
-        self._unsub_refresh = self.hass.loop.call_at(
-            next_refresh,
-            self._DataUpdateCoordinator__wrap_handle_refresh_interval,
-        ).cancel

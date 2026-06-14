@@ -18,6 +18,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     API_BASE,
     DEFAULT_PHOTOS_LIMIT,
+    PATH_CAMERA,
     PATH_CAMERA_ALL,
     PATH_CAMERA_COMMAND,
     PATH_CAMERA_SETTINGS,
@@ -290,6 +291,40 @@ class SpypointDevice:
         if not isinstance(cameras, list):
             raise SpypointConnectionError
         return cameras
+
+    async def get_camera(self, camera_id: str) -> dict[str, Any]:
+        """Return a single camera by id."""
+        await self.login()
+        if not await self._request("GET", f"{PATH_CAMERA}/{camera_id}"):
+            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
+                raise SpypointAuthError
+            raise SpypointConnectionError
+
+        assert self._response is not None
+        camera = self._response.result
+        if not isinstance(camera, dict):
+            raise SpypointConnectionError
+        return camera
+
+    async def get_cameras_by_id(
+        self, camera_ids: list[str]
+    ) -> dict[str, dict[str, Any] | None]:
+        """Return camera data for the given ids."""
+
+        async def _fetch(camera_id: str) -> tuple[str, dict[str, Any] | None]:
+            try:
+                return camera_id, await self.get_camera(camera_id)
+            except SpypointAuthError:
+                raise
+            except SpypointConnectionError:
+                _LOGGER.debug("Unable to fetch camera %s", camera_id)
+                return camera_id, None
+
+        if not camera_ids:
+            return {}
+
+        results = await asyncio.gather(*(_fetch(camera_id) for camera_id in camera_ids))
+        return dict(results)
 
     async def get_photos(
         self,

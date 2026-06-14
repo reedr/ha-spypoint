@@ -8,6 +8,12 @@ from typing import Any
 from .device import parse_spypoint_timestamp
 
 
+def is_instant_mode(camera: dict[str, Any]) -> bool:
+    """Return True when the camera is configured for instant operation."""
+    config = camera.get("config") or {}
+    return config.get("operationMode") == "instant"
+
+
 def camera_name(camera: dict[str, Any]) -> str:
     """Return the display name for a camera."""
     config = camera.get("config") or {}
