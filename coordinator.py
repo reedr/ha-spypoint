@@ -106,7 +106,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return (now - self._last_full_refresh).total_seconds() >= interval_seconds
 
-    async def _async_fetch_cameras(self) -> dict[str, dict[str, Any]]:
+    async def _async_fetch_cameras(
+        self,
+    ) -> tuple[dict[str, dict[str, Any]], set[str]]:
         """Fetch camera data using full or incremental refresh."""
         now = dt_util.now()
 
@@ -114,9 +116,10 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Performing full camera refresh")
             cameras_list = await self.device.get_cameras()
             self._last_full_refresh = now
-            return {
+            cameras = {
                 camera["id"]: camera for camera in cameras_list if camera.get("id")
             }
+            return cameras, set(cameras)
 
         previous_cameras = (self.data or {}).get("cameras", {})
         cameras = dict(previous_cameras)
@@ -128,7 +131,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if not instant_ids:
             _LOGGER.debug("Skipping camera refresh; no instant-mode cameras")
-            return cameras
+            return cameras, set()
 
         _LOGGER.debug(
             "Refreshing %d instant-mode camera(s): %s",
@@ -136,16 +139,18 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ", ".join(instant_ids),
         )
         fetched = await self.device.get_cameras_by_id(instant_ids)
+        fetched_ids: set[str] = set()
         for camera_id, camera in fetched.items():
             if camera is not None:
                 cameras[camera_id] = camera
+                fetched_ids.add(camera_id)
 
-        return cameras
+        return cameras, fetched_ids
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch camera and latest photo data from the Spypoint API."""
         try:
-            cameras = await self._async_fetch_cameras()
+            cameras, fetched_ids = await self._async_fetch_cameras()
         except SpypointAuthError as err:
             raise ConfigEntryAuthFailed from err
         except SpypointConnectionError as err:
@@ -157,7 +162,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for camera_id in cameras
             if camera_id in previous_latest
         }
-        cameras_needing_photos = self._camera_ids_needing_latest_photo(cameras)
+        cameras_needing_photos = self._camera_ids_needing_latest_photo(
+            cameras, fetched_ids
+        )
 
         if cameras_needing_photos:
             try:
@@ -166,7 +173,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise ConfigEntryAuthFailed from err
             latest_photos.update(fetched)
 
-        self._async_process_photo_count_changes(cameras)
+        self._async_process_photo_count_changes(cameras, fetched_ids)
 
         return {
             "cameras": cameras,
@@ -175,11 +182,16 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     def _camera_ids_needing_latest_photo(
-        self, cameras: dict[str, dict[str, Any]]
+        self,
+        cameras: dict[str, dict[str, Any]],
+        fetched_ids: set[str],
     ) -> list[str]:
         """Return camera ids that should fetch a latest photo."""
         camera_ids: list[str] = []
-        for camera_id, camera in cameras.items():
+        for camera_id in fetched_ids:
+            camera = cameras.get(camera_id)
+            if not camera:
+                continue
             new_count = photo_count(camera)
             previous_count = self._photo_counts.get(camera_id)
             if previous_count is None:
@@ -190,7 +202,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     def _async_process_photo_count_changes(
-        self, cameras: dict[str, dict[str, Any]]
+        self,
+        cameras: dict[str, dict[str, Any]],
+        fetched_ids: set[str],
     ) -> None:
         """Update new capture counts and fire an event when photos change."""
         entity_registry = er.async_get(self.hass)
@@ -198,6 +212,8 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         changed_cameras: list[dict[str, Any]] = []
 
         for camera_id, camera in cameras.items():
+            if camera_id not in fetched_ids:
+                continue
             new_count = photo_count(camera)
             previous_count = self._photo_counts.get(camera_id)
 
