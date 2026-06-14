@@ -39,3 +39,18 @@ def last_update(camera: dict[str, Any]) -> datetime | None:
     """Extract the last camera status update time."""
     status = camera.get("status") or {}
     return parse_spypoint_timestamp(status.get("lastUpdate"))
+
+
+def new_photo_count_for_event(
+    camera: dict[str, Any], *, new_count: int, previous_count: int
+) -> int:
+    """Return the new photo count to include in the event payload."""
+    if new_count < previous_count:
+        count = new_count
+    else:
+        count = new_count - previous_count
+
+    config = camera.get("config") or {}
+    if config.get("captureMode") == "video":
+        return count // 3
+    return count

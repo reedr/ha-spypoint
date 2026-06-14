@@ -22,7 +22,7 @@ from .const import (
     should_align_update_interval,
 )
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
-from .camera_data import camera_name, last_update, photo_count, photo_limit
+from .camera_data import camera_name, last_update, new_photo_count_for_event, photo_count, photo_limit
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -144,8 +144,8 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 SENSOR_DOMAIN, DOMAIN, f"{camera_id}_photo_count"
             )
             last_update_time = last_update(camera)
-            new_photo_count = (
-                new_count if new_count < previous_count else new_count - previous_count
+            new_photo_count = new_photo_count_for_event(
+                camera, new_count=new_count, previous_count=previous_count
             )
 
             changed_cameras.append(
