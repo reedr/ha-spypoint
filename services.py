@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_PHOTOS_LOOKBACK_DAYS,
     DOMAIN,
     SERVICE_GET_PHOTOS,
+    SERVICE_REFRESH_CAMERAS,
     SERVICE_REQUEST_HDVIDEO,
 )
 from .coordinator import SpypointCoordinator
@@ -57,6 +58,12 @@ SERVICE_REQUEST_HDVIDEO_SCHEMA = vol.Schema(
         vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
         vol.Required(ATTR_CAMERA_ID): cv.string,
         vol.Required(ATTR_PHOTO_ID): cv.string,
+    }
+)
+
+SERVICE_REFRESH_CAMERAS_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
     }
 )
 
@@ -186,6 +193,12 @@ async def async_request_hdvideo(call: ServiceCall) -> ServiceResponse:
     return {"result": result}
 
 
+async def async_refresh_cameras(call: ServiceCall) -> None:
+    """Force a full refresh of Spypoint camera data."""
+    coordinator = _get_coordinator(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    await coordinator.async_refresh_cameras()
+
+
 async def async_setup(hass: HomeAssistant) -> None:
     """Register Spypoint services."""
     hass.services.async_register(
@@ -201,4 +214,10 @@ async def async_setup(hass: HomeAssistant) -> None:
         async_request_hdvideo,
         schema=SERVICE_REQUEST_HDVIDEO_SCHEMA,
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REFRESH_CAMERAS,
+        async_refresh_cameras,
+        schema=SERVICE_REFRESH_CAMERAS_SCHEMA,
     )

@@ -60,6 +60,17 @@ get_photos:
             - turkey
             - wildboar
 
+refresh_cameras:
+  name: Refresh cameras
+  description: Immediately fetch fresh camera data for all Spypoint cameras.
+  fields:
+    config_entry_id:
+      required: true
+      example: "0123456789abcdef0123456789abcdef"
+      selector:
+        config_entry:
+          integration: spypoint
+
 request_hdvideo:
   name: Request HD video
   description: Request an HD version of a photo or video from Spypoint.

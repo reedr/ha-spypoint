@@ -18,10 +18,9 @@ from .const import (
     COORDINATOR_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
     EVENT_NEW_PHOTOS,
-    REFRESH_ALIGN_OFFSET,
     get_instant_update_interval_seconds,
     get_update_interval_seconds,
-    should_align_update_interval,
+    should_aligned_refresh,
 )
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
 from .camera_data import (
@@ -61,6 +60,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._new_capture_counts: dict[str, int] = {}
         self._last_full_refresh: datetime | None = None
         self._last_instant_refresh: datetime | None = None
+        self._force_full_refresh = False
 
     @property
     def device(self) -> SpypointDevice:
@@ -90,33 +90,27 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.device.async_setup()
         await self.device.login()
 
+    async def async_refresh_cameras(self) -> None:
+        """Force an immediate full camera data refresh."""
+        self._force_full_refresh = True
+        await self.async_request_refresh()
+
     def _should_full_refresh(self, now: datetime) -> bool:
         """Return True when all cameras should be fetched."""
-        if self._last_full_refresh is None:
+        if self._force_full_refresh:
             return True
 
         interval_seconds = get_update_interval_seconds(self.config_entry)
-
-        if should_align_update_interval(interval_seconds):
-            anchor = dt_util.start_of_local_day(now) + REFRESH_ALIGN_OFFSET
-            if now < anchor:
-                return False
-            elapsed = now - anchor
-            interval = timedelta(seconds=interval_seconds)
-            current_slot = anchor + (elapsed // interval) * interval
-            return self._last_full_refresh < current_slot
-
-        return (now - self._last_full_refresh).total_seconds() >= interval_seconds
+        return should_aligned_refresh(
+            self._last_full_refresh, now, interval_seconds
+        )
 
     def _should_instant_refresh(self, now: datetime) -> bool:
         """Return True when instant-mode cameras should be fetched."""
-        if self._last_instant_refresh is None:
-            return True
-
         interval_seconds = get_instant_update_interval_seconds(self.config_entry)
-        return (
-            now - self._last_instant_refresh
-        ).total_seconds() >= interval_seconds
+        return should_aligned_refresh(
+            self._last_instant_refresh, now, interval_seconds
+        )
 
     async def _async_fetch_cameras(
         self,
@@ -129,6 +123,7 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             cameras_list = await self.device.get_cameras()
             self._last_full_refresh = now
             self._last_instant_refresh = now
+            self._force_full_refresh = False
             cameras = {
                 camera["id"]: camera for camera in cameras_list if camera.get("id")
             }

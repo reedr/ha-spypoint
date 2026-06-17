@@ -21,6 +21,7 @@ PATH_PHOTO_VIDEO = "/photo/video"
 
 SERVICE_GET_PHOTOS = "get_photos"
 SERVICE_REQUEST_HDVIDEO = "request_hdvideo"
+SERVICE_REFRESH_CAMERAS = "refresh_cameras"
 
 EVENT_NEW_PHOTOS = f"{DOMAIN}_new_photos"
 
@@ -55,12 +56,37 @@ COORDINATOR_UPDATE_INTERVAL_SECONDS = 60
 MIN_UPDATE_INTERVAL_SECONDS = 60
 MAX_UPDATE_INTERVAL_SECONDS = 24 * 60 * 60
 REFRESH_ALIGN_OFFSET = timedelta(minutes=5)
-REFRESH_ALIGN_INTERVAL = timedelta(minutes=30)
 
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
 CONF_INSTANT_SCAN_INTERVAL = "instant_scan_interval"
 CONF_INSTANT_SCAN_INTERVAL_MINUTES = "instant_scan_interval_minutes"
+
+
+def aligned_refresh_anchor(now: datetime) -> datetime:
+    """Return the daily anchor at local midnight plus five minutes."""
+    return dt_util.start_of_local_day(now) + REFRESH_ALIGN_OFFSET
+
+
+def current_aligned_slot(now: datetime, interval_seconds: int) -> datetime | None:
+    """Return the aligned refresh slot at or before now."""
+    anchor = aligned_refresh_anchor(now)
+    if now < anchor:
+        return None
+    interval = timedelta(seconds=interval_seconds)
+    elapsed = now - anchor
+    return anchor + (elapsed // interval) * interval
+
+
+def should_aligned_refresh(
+    last_refresh: datetime | None, now: datetime, interval_seconds: int
+) -> bool:
+    """Return True when a new aligned refresh slot has started."""
+    if last_refresh is None:
+        return True
+    if (slot := current_aligned_slot(now, interval_seconds)) is None:
+        return False
+    return last_refresh < slot
 
 
 def get_update_interval_seconds(config_entry: ConfigEntry) -> int:
@@ -75,20 +101,3 @@ def get_instant_update_interval_seconds(config_entry: ConfigEntry) -> int:
     if (interval := config_entry.options.get(CONF_INSTANT_SCAN_INTERVAL)) is not None:
         return int(interval)
     return DEFAULT_INSTANT_UPDATE_INTERVAL_SECONDS
-
-
-def should_align_update_interval(interval_seconds: int) -> bool:
-    """Return True when refresh should align to clock times."""
-    return interval_seconds % int(REFRESH_ALIGN_INTERVAL.total_seconds()) == 0
-
-
-def next_aligned_update_time(now: datetime, interval_seconds: int) -> datetime:
-    """Return the next refresh time aligned to local midnight + 5 minutes."""
-    interval = timedelta(seconds=interval_seconds)
-    anchor = dt_util.start_of_local_day(now) + REFRESH_ALIGN_OFFSET
-
-    if now < anchor:
-        return anchor
-
-    elapsed = now - anchor
-    return anchor + (elapsed // interval + 1) * interval
