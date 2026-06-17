@@ -93,6 +93,9 @@ def _last_update_value(camera: dict[str, Any]) -> datetime | None:
     return last_update(camera)
 
 
+IGNORED_ALARM_NOTIFICATIONS = frozenset({"sd_card_one_partition"})
+
+
 def _notifications(camera: dict[str, Any]) -> list[Any]:
     """Extract camera notifications."""
     status = camera.get("status") or {}
@@ -102,9 +105,23 @@ def _notifications(camera: dict[str, Any]) -> list[Any]:
     return []
 
 
+def _is_ignored_alarm_notification(notification: Any) -> bool:
+    """Return True when a notification should not count as an alarm."""
+    if isinstance(notification, str):
+        return notification in IGNORED_ALARM_NOTIFICATIONS
+    if isinstance(notification, dict):
+        notification_type = notification.get("type") or notification.get("name")
+        return notification_type in IGNORED_ALARM_NOTIFICATIONS
+    return False
+
+
 def _alarms_value(camera: dict[str, Any]) -> int:
     """Return the number of active notifications."""
-    return len(_notifications(camera))
+    return sum(
+        1
+        for notification in _notifications(camera)
+        if not _is_ignored_alarm_notification(notification)
+    )
 
 
 def _alarms_attributes(camera: dict[str, Any]) -> dict[str, Any]:
