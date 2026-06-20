@@ -230,12 +230,18 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise ConfigEntryAuthFailed from err
             latest_photos.update(fetched)
 
+        previous_new_captures = dict((self.data or {}).get("new_captures", {}))
         self._async_process_photo_count_changes(cameras, fetched_ids)
+
+        new_captures = dict(previous_new_captures)
+        for camera_id in fetched_ids:
+            new_captures[camera_id] = self._new_capture_counts.get(camera_id, 0)
+        self._new_capture_counts = new_captures
 
         return {
             "cameras": cameras,
             "latest_photos": latest_photos,
-            "new_captures": dict(self._new_capture_counts),
+            "new_captures": new_captures,
         }
 
     def _camera_ids_needing_latest_photo(
