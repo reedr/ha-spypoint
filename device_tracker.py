@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
-from .device import get_camera_coordinates, parse_spypoint_timestamp
+from .device import get_camera_coordinate_attributes, get_camera_coordinates
 from .entity import SpypointEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,7 +58,9 @@ class SpypointCameraTracker(SpypointEntity, TrackerEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return super().available and self.camera is not None and self._coordinates is not None
+        if not super().available or self.camera is None:
+            return False
+        return self._coordinates is not None
 
     @property
     def latitude(self) -> float | None:
@@ -82,6 +84,8 @@ class SpypointCameraTracker(SpypointEntity, TrackerEntity):
     @property
     def _coordinates(self) -> tuple[float, float] | None:
         """Return parsed coordinates for the camera."""
+        if self.coordinator.is_position_locked(self.camera_id):
+            return self.coordinator.get_locked_coordinates(self.camera_id)
         if not self.camera:
             return None
         return get_camera_coordinates(self.camera)
@@ -89,23 +93,11 @@ class SpypointCameraTracker(SpypointEntity, TrackerEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str] | None:
         """Return coordinate metadata."""
+        if self.coordinator.is_position_locked(self.camera_id):
+            return self.coordinator.get_locked_coordinate_attributes(self.camera_id)
         if not self.camera:
             return None
-        coordinates_list = (self.camera.get("status") or {}).get("coordinates") or []
-        if not coordinates_list:
-            return None
-        coordinate = coordinates_list[-1]
-        if not isinstance(coordinate, dict):
-            return None
-        attributes: dict[str, str] = {}
-        if geohash := coordinate.get("geohash"):
-            attributes["geohash"] = str(geohash)
-        if date_time := coordinate.get("dateTime"):
-            if parsed := parse_spypoint_timestamp(str(date_time)):
-                attributes["date_time"] = parsed.isoformat()
-            else:
-                attributes["date_time"] = str(date_time)
-        return attributes or None
+        return get_camera_coordinate_attributes(self.camera)
 
     @callback
     def _handle_coordinator_update(self) -> None:

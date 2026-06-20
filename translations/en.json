@@ -81,6 +81,11 @@
       "latest_photo": {
         "name": "Latest photo"
       }
+    },
+    "switch": {
+      "lock_gps_position": {
+        "name": "Lock GPS Position"
+      }
     }
   }
 }

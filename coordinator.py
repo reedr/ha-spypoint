@@ -22,7 +22,13 @@ from .const import (
     get_update_interval_seconds,
     should_aligned_refresh,
 )
-from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
+from .device import (
+    SpypointAuthError,
+    SpypointConnectionError,
+    SpypointDevice,
+    get_camera_coordinate_attributes,
+    get_camera_coordinates,
+)
 from .camera_data import (
     camera_name,
     is_instant_mode,
@@ -61,6 +67,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_full_refresh: datetime | None = None
         self._last_instant_refresh: datetime | None = None
         self._force_full_refresh = False
+        self._position_locked: set[str] = set()
+        self._locked_coordinates: dict[str, tuple[float, float]] = {}
+        self._locked_coordinate_attributes: dict[str, dict[str, str] | None] = {}
 
     @property
     def device(self) -> SpypointDevice:
@@ -84,6 +93,39 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self.data:
             return 0
         return self.data.get("new_captures", {}).get(camera_id, 0)
+
+    def is_position_locked(self, camera_id: str) -> bool:
+        """Return True when the camera location should ignore API updates."""
+        return camera_id in self._position_locked
+
+    def get_locked_coordinates(self, camera_id: str) -> tuple[float, float] | None:
+        """Return frozen coordinates for a position-locked camera."""
+        return self._locked_coordinates.get(camera_id)
+
+    def get_locked_coordinate_attributes(
+        self, camera_id: str
+    ) -> dict[str, str] | None:
+        """Return frozen coordinate metadata for a position-locked camera."""
+        return self._locked_coordinate_attributes.get(camera_id)
+
+    @callback
+    def set_position_locked(self, camera_id: str, locked: bool) -> None:
+        """Lock or unlock device tracker updates for a camera."""
+        if locked:
+            camera = self.get_camera(camera_id)
+        if camera is not None:
+            coords = get_camera_coordinates(camera)
+            if coords is not None:
+                self._locked_coordinates[camera_id] = coords
+            self._locked_coordinate_attributes[camera_id] = (
+                get_camera_coordinate_attributes(camera)
+            )
+            self._position_locked.add(camera_id)
+        else:
+            self._position_locked.discard(camera_id)
+            self._locked_coordinates.pop(camera_id, None)
+            self._locked_coordinate_attributes.pop(camera_id, None)
+        self.async_update_listeners()
 
     async def _async_setup(self) -> None:
         """Perform one-time setup before the first refresh."""

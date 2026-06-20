@@ -97,6 +97,27 @@ def get_camera_coordinates(camera: dict[str, Any]) -> tuple[float, float] | None
     return latitude, longitude
 
 
+def get_camera_coordinate_attributes(
+    camera: dict[str, Any],
+) -> dict[str, str] | None:
+    """Return coordinate metadata for the latest camera position."""
+    coordinates_list = (camera.get("status") or {}).get("coordinates") or []
+    if not coordinates_list:
+        return None
+    coordinate = coordinates_list[-1]
+    if not isinstance(coordinate, dict):
+        return None
+    attributes: dict[str, str] = {}
+    if geohash := coordinate.get("geohash"):
+        attributes["geohash"] = str(geohash)
+    if date_time := coordinate.get("dateTime"):
+        if parsed := parse_spypoint_timestamp(str(date_time)):
+            attributes["date_time"] = parsed.isoformat()
+        else:
+            attributes["date_time"] = str(date_time)
+    return attributes or None
+
+
 class SpypointAuthError(HomeAssistantError):
     """Error to indicate invalid authentication."""
 
