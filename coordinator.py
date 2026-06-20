@@ -113,13 +113,13 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Lock or unlock device tracker updates for a camera."""
         if locked:
             camera = self.get_camera(camera_id)
-        if camera is not None:
-            coords = get_camera_coordinates(camera)
-            if coords is not None:
-                self._locked_coordinates[camera_id] = coords
-            self._locked_coordinate_attributes[camera_id] = (
-                get_camera_coordinate_attributes(camera)
-            )
+            if camera is not None:
+                coords = get_camera_coordinates(camera)
+                if coords is not None:
+                    self._locked_coordinates[camera_id] = coords
+                self._locked_coordinate_attributes[camera_id] = (
+                    get_camera_coordinate_attributes(camera)
+                )
             self._position_locked.add(camera_id)
         else:
             self._position_locked.discard(camera_id)
