@@ -18,7 +18,6 @@ from .const import (
     COORDINATOR_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
     EVENT_NEW_PHOTOS,
-    camera_status_refresh_interval_seconds,
     get_update_interval_seconds,
     should_aligned_refresh,
 )
@@ -31,6 +30,7 @@ from .device import (
 )
 from .camera_data import (
     camera_name,
+    camera_status_refresh_interval_seconds,
     last_update,
     new_photo_count_for_event,
     photo_count,

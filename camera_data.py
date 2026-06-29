@@ -5,6 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
+
+from .const import (
+    SECONDS_PER_DAY,
+    get_instant_update_interval_seconds,
+    get_update_interval_seconds,
+)
 from .device import parse_spypoint_timestamp
 
 
@@ -47,6 +54,17 @@ def transmit_freq(camera: dict[str, Any]) -> int | None:
     if (value := config.get("transmitFreq")) is None:
         return None
     return int(value)
+
+
+def camera_status_refresh_interval_seconds(
+    camera: dict[str, Any], config_entry: ConfigEntry
+) -> int:
+    """Return the aligned status refresh interval for a camera in seconds."""
+    if is_instant_mode(camera):
+        return get_instant_update_interval_seconds(config_entry)
+    if (freq := transmit_freq(camera)) is not None and freq > 0:
+        return SECONDS_PER_DAY // freq
+    return get_update_interval_seconds(config_entry)
 
 
 def last_update(camera: dict[str, Any]) -> datetime | None:

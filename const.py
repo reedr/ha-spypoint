@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.util import dt as dt_util
-
-from .camera_data import is_instant_mode, transmit_freq
 
 DOMAIN = "spypoint"
 MANUFACTURER = "Spypoint"
@@ -105,14 +102,3 @@ def get_instant_update_interval_seconds(config_entry: ConfigEntry) -> int:
     if (interval := config_entry.options.get(CONF_INSTANT_SCAN_INTERVAL)) is not None:
         return int(interval)
     return DEFAULT_INSTANT_UPDATE_INTERVAL_SECONDS
-
-
-def camera_status_refresh_interval_seconds(
-    camera: dict[str, Any], config_entry: ConfigEntry
-) -> int:
-    """Return the aligned status refresh interval for a camera in seconds."""
-    if is_instant_mode(camera):
-        return get_instant_update_interval_seconds(config_entry)
-    if (freq := transmit_freq(camera)) is not None and freq > 0:
-        return SECONDS_PER_DAY // freq
-    return get_update_interval_seconds(config_entry)
