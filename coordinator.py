@@ -18,7 +18,7 @@ from .const import (
     COORDINATOR_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
     EVENT_NEW_PHOTOS,
-    get_instant_update_interval_seconds,
+    camera_status_refresh_interval_seconds,
     get_update_interval_seconds,
     should_aligned_refresh,
 )
@@ -31,7 +31,6 @@ from .device import (
 )
 from .camera_data import (
     camera_name,
-    is_instant_mode,
     last_update,
     new_photo_count_for_event,
     photo_count,
@@ -64,8 +63,8 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device = device
         self._photo_counts: dict[str, int | None] = {}
         self._new_capture_counts: dict[str, int] = {}
-        self._last_full_refresh: datetime | None = None
-        self._last_instant_refresh: datetime | None = None
+        self._last_camera_refresh: dict[str, datetime] = {}
+        self._last_discovery_refresh: datetime | None = None
         self._force_full_refresh = False
         self._position_locked: set[str] = set()
         self._locked_coordinates: dict[str, tuple[float, float]] = {}
@@ -137,71 +136,77 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._force_full_refresh = True
         await self.async_request_refresh()
 
-    def _should_full_refresh(self, now: datetime) -> bool:
-        """Return True when all cameras should be fetched."""
-        if self._force_full_refresh:
-            return True
-
+    def _should_discovery_refresh(self, now: datetime) -> bool:
+        """Return True when the full camera list should be fetched."""
         interval_seconds = get_update_interval_seconds(self.config_entry)
         return should_aligned_refresh(
-            self._last_full_refresh, now, interval_seconds
+            self._last_discovery_refresh, now, interval_seconds
         )
 
-    def _should_instant_refresh(self, now: datetime) -> bool:
-        """Return True when instant-mode cameras should be fetched."""
-        interval_seconds = get_instant_update_interval_seconds(self.config_entry)
-        return should_aligned_refresh(
-            self._last_instant_refresh, now, interval_seconds
+    def _camera_due_for_refresh(
+        self, camera_id: str, camera: dict[str, Any], now: datetime
+    ) -> bool:
+        """Return True when a camera should fetch updated status."""
+        interval_seconds = camera_status_refresh_interval_seconds(
+            camera, self.config_entry
         )
+        return should_aligned_refresh(
+            self._last_camera_refresh.get(camera_id), now, interval_seconds
+        )
+
+    async def _async_full_refresh(
+        self, now: datetime
+    ) -> tuple[dict[str, dict[str, Any]], set[str]]:
+        """Fetch all cameras and reset per-camera refresh timestamps."""
+        _LOGGER.debug("Performing full camera refresh")
+        cameras_list = await self.device.get_cameras()
+        cameras = {
+            camera["id"]: camera for camera in cameras_list if camera.get("id")
+        }
+        self._last_camera_refresh = {
+            camera_id: now for camera_id in cameras
+        }
+        self._last_discovery_refresh = now
+        self._force_full_refresh = False
+        return cameras, set(cameras)
 
     async def _async_fetch_cameras(
         self,
     ) -> tuple[dict[str, dict[str, Any]], set[str]]:
-        """Fetch camera data using full or incremental refresh."""
+        """Fetch camera data using full or per-camera refresh."""
         now = dt_util.now()
+        previous_cameras = (self.data or {}).get("cameras", {}) if self.data else {}
 
-        if self._should_full_refresh(now):
-            _LOGGER.debug("Performing full camera refresh")
-            cameras_list = await self.device.get_cameras()
-            self._last_full_refresh = now
-            self._last_instant_refresh = now
-            self._force_full_refresh = False
-            cameras = {
-                camera["id"]: camera for camera in cameras_list if camera.get("id")
-            }
-            return cameras, set(cameras)
+        if self._force_full_refresh or not previous_cameras:
+            return await self._async_full_refresh(now)
 
-        if not self._should_instant_refresh(now):
-            _LOGGER.debug("Skipping instant camera refresh; interval not elapsed")
-            previous_cameras = (self.data or {}).get("cameras", {})
-            return dict(previous_cameras), set()
+        if self._should_discovery_refresh(now):
+            return await self._async_full_refresh(now)
 
-        previous_cameras = (self.data or {}).get("cameras", {})
         cameras = dict(previous_cameras)
-        instant_ids = [
+        due_ids = [
             camera_id
             for camera_id, camera in cameras.items()
-            if is_instant_mode(camera)
+            if self._camera_due_for_refresh(camera_id, camera, now)
         ]
 
-        if not instant_ids:
-            _LOGGER.debug("Skipping camera refresh; no instant-mode cameras")
-            self._last_instant_refresh = now
+        if not due_ids:
+            _LOGGER.debug("Skipping camera refresh; no cameras due")
             return cameras, set()
 
         _LOGGER.debug(
-            "Refreshing %d instant-mode camera(s): %s",
-            len(instant_ids),
-            ", ".join(instant_ids),
+            "Refreshing %d camera(s) due for status update: %s",
+            len(due_ids),
+            ", ".join(due_ids),
         )
-        fetched = await self.device.get_cameras_by_id(instant_ids)
+        fetched = await self.device.get_cameras_by_id(due_ids)
         fetched_ids: set[str] = set()
         for camera_id, camera in fetched.items():
             if camera is not None:
                 cameras[camera_id] = camera
                 fetched_ids.add(camera_id)
+                self._last_camera_refresh[camera_id] = now
 
-        self._last_instant_refresh = now
         return cameras, fetched_ids
 
     async def _async_update_data(self) -> dict[str, Any]:
