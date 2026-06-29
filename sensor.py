@@ -23,7 +23,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
-from .camera_data import last_update, photo_count, photo_limit
+from .camera_data import last_update, photo_count, photo_limit, transmit_freq
 from .entity import SpypointEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,6 +86,18 @@ def _photo_count_value(camera: dict[str, Any]) -> int | None:
 def _photo_limit_value(camera: dict[str, Any]) -> int | None:
     """Extract monthly photo limit."""
     return photo_limit(camera)
+
+
+def _transmit_freq_value(camera: dict[str, Any]) -> int | None:
+    """Extract cloud transmit frequency."""
+    return transmit_freq(camera)
+
+
+def _transmit_freq_attributes(camera: dict[str, Any]) -> dict[str, Any]:
+    """Return transmit frequency details as attributes."""
+    if transmit_freq(camera) == 0:
+        return {"cloud_connection_schedule": "After every detection"}
+    return {}
 
 
 def _last_update_value(camera: dict[str, Any]) -> datetime | None:
@@ -204,6 +216,16 @@ SENSOR_DESCRIPTIONS: tuple[SpypointSensorEntityDescription, ...] = (
         translation_key="photo_limit",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=_photo_limit_value,
+    ),
+    SpypointSensorEntityDescription(
+        key="transmit_frequency",
+        entity_name="Transmit frequency",
+        translation_key="transmit_frequency",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="connections/day",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=_transmit_freq_value,
+        attributes_fn=_transmit_freq_attributes,
     ),
     SpypointSensorEntityDescription(
         key="last_update",

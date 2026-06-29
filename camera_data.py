@@ -9,9 +9,9 @@ from .device import parse_spypoint_timestamp
 
 
 def is_instant_mode(camera: dict[str, Any]) -> bool:
-    """Return True when the camera is configured for instant operation."""
+    """Return True when the camera should use instant refresh polling."""
     config = camera.get("config") or {}
-    return config.get("operationMode") == "instant"
+    return config.get("operationMode") == "instant" or transmit_freq(camera) == 0
 
 
 def camera_name(camera: dict[str, Any]) -> str:
@@ -37,6 +37,14 @@ def photo_limit(camera: dict[str, Any]) -> int | None:
     if not subscriptions:
         return None
     if (value := subscriptions[0].get("photoLimit")) is None:
+        return None
+    return int(value)
+
+
+def transmit_freq(camera: dict[str, Any]) -> int | None:
+    """Extract cloud transmit frequency (connections per day, 0 = every detection)."""
+    config = camera.get("config") or {}
+    if (value := config.get("transmitFreq")) is None:
         return None
     return int(value)
 

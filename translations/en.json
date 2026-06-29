@@ -59,6 +59,9 @@
       "photo_limit": {
         "name": "Photo limit"
       },
+      "transmit_frequency": {
+        "name": "Transmit frequency"
+      },
       "last_update": {
         "name": "Last update"
       },
