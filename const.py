@@ -63,6 +63,8 @@ CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
 CONF_INSTANT_SCAN_INTERVAL = "instant_scan_interval"
 CONF_INSTANT_SCAN_INTERVAL_MINUTES = "instant_scan_interval_minutes"
 
+POSITION_LOCK_STORAGE_VERSION = 1
+
 
 def aligned_refresh_anchor(now: datetime) -> datetime:
     """Return the daily anchor at local midnight plus five minutes."""

@@ -11,6 +11,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -18,6 +19,7 @@ from .const import (
     COORDINATOR_UPDATE_INTERVAL_SECONDS,
     DOMAIN,
     EVENT_NEW_PHOTOS,
+    POSITION_LOCK_STORAGE_VERSION,
     get_update_interval_seconds,
     should_aligned_refresh,
 )
@@ -69,6 +71,11 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._position_locked: set[str] = set()
         self._locked_coordinates: dict[str, tuple[float, float]] = {}
         self._locked_coordinate_attributes: dict[str, dict[str, str] | None] = {}
+        self._position_lock_store = Store[dict[str, Any]](
+            hass,
+            POSITION_LOCK_STORAGE_VERSION,
+            f"{DOMAIN}_{config_entry.entry_id}_position_locks",
+        )
 
     @property
     def device(self) -> SpypointDevice:
@@ -113,21 +120,47 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if locked:
             camera = self.get_camera(camera_id)
             if camera is not None:
-                coords = get_camera_coordinates(camera)
-                if coords is not None:
+                if (coords := get_camera_coordinates(camera)) is not None:
                     self._locked_coordinates[camera_id] = coords
-                self._locked_coordinate_attributes[camera_id] = (
-                    get_camera_coordinate_attributes(camera)
-                )
+                if (attrs := get_camera_coordinate_attributes(camera)) is not None:
+                    self._locked_coordinate_attributes[camera_id] = attrs
             self._position_locked.add(camera_id)
         else:
             self._position_locked.discard(camera_id)
             self._locked_coordinates.pop(camera_id, None)
             self._locked_coordinate_attributes.pop(camera_id, None)
         self.async_update_listeners()
+        self.hass.async_create_task(self._async_save_position_locks())
+
+    async def _async_load_position_locks(self) -> None:
+        """Restore persisted GPS lock state."""
+        stored = await self._position_lock_store.async_load() or {}
+        for camera_id, lock_data in stored.get("locks", {}).items():
+            self._position_locked.add(camera_id)
+            latitude = lock_data.get("latitude")
+            longitude = lock_data.get("longitude")
+            if latitude is not None and longitude is not None:
+                self._locked_coordinates[camera_id] = (latitude, longitude)
+            attributes = lock_data.get("attributes")
+            if isinstance(attributes, dict):
+                self._locked_coordinate_attributes[camera_id] = attributes
+
+    async def _async_save_position_locks(self) -> None:
+        """Persist GPS lock state."""
+        locks: dict[str, dict[str, Any]] = {}
+        for camera_id in self._position_locked:
+            lock_data: dict[str, Any] = {}
+            if (coords := self._locked_coordinates.get(camera_id)) is not None:
+                lock_data["latitude"] = coords[0]
+                lock_data["longitude"] = coords[1]
+            if (attrs := self._locked_coordinate_attributes.get(camera_id)) is not None:
+                lock_data["attributes"] = attrs
+            locks[camera_id] = lock_data
+        await self._position_lock_store.async_save({"locks": locks})
 
     async def _async_setup(self) -> None:
         """Perform one-time setup before the first refresh."""
+        await self._async_load_position_locks()
         await self.device.async_setup()
         await self.device.login()
 
