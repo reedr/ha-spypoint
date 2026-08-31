@@ -17,10 +17,19 @@ from .const import (
     CONF_INSTANT_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL,
     CONF_SCAN_INTERVAL_MINUTES,
+    CONF_STALE_MINIMUM,
+    CONF_STALE_MINIMUM_MINUTES,
+    CONF_STALE_MULTIPLIER,
     DOMAIN,
+    MAX_STALE_MINIMUM_SECONDS,
+    MAX_STALE_MULTIPLIER,
     MAX_UPDATE_INTERVAL_SECONDS,
+    MIN_STALE_MINIMUM_SECONDS,
+    MIN_STALE_MULTIPLIER,
     MIN_UPDATE_INTERVAL_SECONDS,
     get_instant_update_interval_seconds,
+    get_stale_minimum_seconds,
+    get_stale_multiplier,
     get_update_interval_seconds,
 )
 from .device import SpypointAuthError, SpypointConnectionError, SpypointDevice
@@ -146,6 +155,8 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_INSTANT_SCAN_INTERVAL: (
                         user_input[CONF_INSTANT_SCAN_INTERVAL_MINUTES] * 60
                     ),
+                    CONF_STALE_MULTIPLIER: user_input[CONF_STALE_MULTIPLIER],
+                    CONF_STALE_MINIMUM: user_input[CONF_STALE_MINIMUM_MINUTES] * 60,
                 }
             )
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
@@ -154,6 +165,10 @@ class OptionsFlowHandler(OptionsFlow):
         current_minutes = get_update_interval_seconds(self.config_entry) // 60
         current_instant_minutes = (
             get_instant_update_interval_seconds(self.config_entry) // 60
+        )
+        current_stale_multiplier = get_stale_multiplier(self.config_entry)
+        current_stale_minimum_minutes = (
+            get_stale_minimum_seconds(self.config_entry) // 60
         )
         interval_range = vol.All(
             vol.Coerce(int),
@@ -172,6 +187,23 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_INSTANT_SCAN_INTERVAL_MINUTES,
                     default=current_instant_minutes,
                 ): interval_range,
+                vol.Required(
+                    CONF_STALE_MULTIPLIER,
+                    default=current_stale_multiplier,
+                ): vol.All(
+                    vol.Coerce(float),
+                    vol.Range(min=MIN_STALE_MULTIPLIER, max=MAX_STALE_MULTIPLIER),
+                ),
+                vol.Required(
+                    CONF_STALE_MINIMUM_MINUTES,
+                    default=current_stale_minimum_minutes,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(
+                        min=MIN_STALE_MINIMUM_SECONDS // 60,
+                        max=MAX_STALE_MINIMUM_SECONDS // 60,
+                    ),
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

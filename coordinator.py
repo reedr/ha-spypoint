@@ -121,6 +121,25 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return frozen coordinate metadata for a position-locked camera."""
         return self._locked_coordinate_attributes.get(camera_id)
 
+    @property
+    def position_lock_state(self) -> dict[str, dict[str, Any]]:
+        """Return the persisted GPS lock state, keyed by camera id."""
+        camera_ids = (
+            self._position_locked
+            | set(self._locked_coordinates)
+            | set(self._locked_coordinate_attributes)
+        )
+        state: dict[str, dict[str, Any]] = {}
+        for camera_id in camera_ids:
+            entry: dict[str, Any] = {"locked": camera_id in self._position_locked}
+            if (coords := self._locked_coordinates.get(camera_id)) is not None:
+                entry["latitude"] = coords[0]
+                entry["longitude"] = coords[1]
+            if (attrs := self._locked_coordinate_attributes.get(camera_id)) is not None:
+                entry["attributes"] = attrs
+            state[camera_id] = entry
+        return state
+
     @callback
     def set_position_locked(self, camera_id: str, locked: bool) -> None:
         """Lock or unlock device tracker updates for a camera."""
@@ -213,7 +232,59 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
         self._last_discovery_refresh = now
         self._force_full_refresh = False
+        self._prune_removed_cameras(set(cameras))
         return cameras, set(cameras)
+
+    def registered_camera_ids(self) -> set[str]:
+        """Return camera ids that still have a device in the registry."""
+        device_registry = dr.async_get(self.hass)
+        devices = dr.async_entries_for_config_entry(
+            device_registry, self.config_entry.entry_id
+        )
+        return {
+            identifier
+            for device in devices
+            for domain, identifier in device.identifiers
+            if domain == DOMAIN
+        }
+
+    def _prune_removed_cameras(self, current_ids: set[str]) -> None:
+        """Drop cached state for cameras the API no longer returns.
+
+        Only runs on a full refresh, where the fetched list is authoritative.
+        An empty list is treated as an API glitch rather than an account with
+        no cameras, so nothing is discarded in that case.
+
+        GPS locks hold coordinates the user pinned by hand, so they are only
+        discarded once the camera's device has also been removed from the
+        registry. A camera that vanishes from the API transiently keeps its
+        frozen position until the device itself is deleted.
+        """
+        if not current_ids:
+            return
+
+        for stale_id in set(self._photo_counts) - current_ids:
+            self._photo_counts.pop(stale_id, None)
+        for stale_id in set(self._new_capture_counts) - current_ids:
+            self._new_capture_counts.pop(stale_id, None)
+
+        live_ids = current_ids | self.registered_camera_ids()
+        stale_locks = self._position_locked - live_ids
+        stale_coords = set(self._locked_coordinates) - live_ids
+        stale_attrs = set(self._locked_coordinate_attributes) - live_ids
+        if not (stale_locks or stale_coords or stale_attrs):
+            return
+
+        _LOGGER.debug(
+            "Pruning GPS position lock state for removed camera(s): %s",
+            ", ".join(sorted(stale_locks | stale_coords | stale_attrs)),
+        )
+        self._position_locked -= stale_locks
+        for stale_id in stale_coords:
+            self._locked_coordinates.pop(stale_id, None)
+        for stale_id in stale_attrs:
+            self._locked_coordinate_attributes.pop(stale_id, None)
+        self.hass.async_create_task(self._async_save_position_locks())
 
     async def _async_fetch_cameras(
         self,
@@ -283,7 +354,11 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         previous_new_captures = dict((self.data or {}).get("new_captures", {}))
         self._async_process_photo_count_changes(cameras, fetched_ids)
 
-        new_captures = dict(previous_new_captures)
+        new_captures = {
+            camera_id: count
+            for camera_id, count in previous_new_captures.items()
+            if camera_id in cameras
+        }
         for camera_id in fetched_ids:
             new_captures[camera_id] = self._new_capture_counts.get(camera_id, 0)
         self._new_capture_counts = new_captures

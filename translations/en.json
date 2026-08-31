@@ -28,7 +28,9 @@
       "init": {
         "data": {
           "scan_interval_minutes": "Full refresh interval (minutes)",
-          "instant_scan_interval_minutes": "Instant camera refresh interval (minutes)"
+          "instant_scan_interval_minutes": "Instant camera refresh interval (minutes)",
+          "stale_multiplier": "Stale after N missed check-ins",
+          "stale_minimum_minutes": "Minimum time before stale (minutes)"
         }
       }
     }
@@ -88,6 +90,11 @@
     "switch": {
       "lock_gps_position": {
         "name": "Lock GPS Position"
+      }
+    },
+    "binary_sensor": {
+      "stale": {
+        "name": "Stale"
       }
     }
   }

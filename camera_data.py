@@ -10,6 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from .const import (
     SECONDS_PER_DAY,
     get_instant_update_interval_seconds,
+    get_stale_minimum_seconds,
+    get_stale_multiplier,
     get_update_interval_seconds,
 )
 from .device import parse_spypoint_timestamp
@@ -65,6 +67,20 @@ def camera_status_refresh_interval_seconds(
     if (freq := transmit_freq(camera)) is not None and freq > 0:
         return SECONDS_PER_DAY // freq
     return get_update_interval_seconds(config_entry)
+
+
+def camera_stale_after_seconds(
+    camera: dict[str, Any], config_entry: ConfigEntry
+) -> int:
+    """Return how long a camera may go without checking in before it is stale.
+
+    Derived from the camera's own transmit frequency, so a camera that reports
+    six times a day is given proportionally more slack than one reporting
+    twelve, with a configurable floor for very frequent reporters.
+    """
+    expected = camera_status_refresh_interval_seconds(camera, config_entry)
+    threshold = int(expected * get_stale_multiplier(config_entry))
+    return max(threshold, get_stale_minimum_seconds(config_entry))
 
 
 def last_update(camera: dict[str, Any]) -> datetime | None:

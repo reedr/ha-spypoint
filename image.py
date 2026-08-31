@@ -29,6 +29,12 @@ async def async_setup_entry(
         if not coordinator.data:
             return
         current_cameras = set(coordinator.data.get("cameras", {}))
+        # Forget cameras whose device has been deleted, so one that comes back
+        # is given new entities; a camera merely missing from the API keeps its
+        # existing ones.
+        known_cameras.intersection_update(
+            current_cameras | coordinator.registered_camera_ids()
+        )
         new_cameras = current_cameras - known_cameras
         if not new_cameras:
             return

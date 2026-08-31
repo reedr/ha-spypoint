@@ -62,6 +62,17 @@ CONF_SCAN_INTERVAL = "scan_interval"
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
 CONF_INSTANT_SCAN_INTERVAL = "instant_scan_interval"
 CONF_INSTANT_SCAN_INTERVAL_MINUTES = "instant_scan_interval_minutes"
+CONF_STALE_MULTIPLIER = "stale_multiplier"
+CONF_STALE_MINIMUM = "stale_minimum"
+CONF_STALE_MINIMUM_MINUTES = "stale_minimum_minutes"
+
+DEFAULT_STALE_MULTIPLIER = 2.5
+DEFAULT_STALE_MINIMUM_SECONDS = 60 * 60
+MIN_STALE_MULTIPLIER = 1.5
+MAX_STALE_MULTIPLIER = 10.0
+MIN_STALE_MINIMUM_SECONDS = 5 * 60
+MAX_STALE_MINIMUM_SECONDS = 24 * 60 * 60
+STALE_RECHECK_INTERVAL = timedelta(minutes=1)
 
 POSITION_LOCK_STORAGE_VERSION = 1
 
@@ -104,3 +115,17 @@ def get_instant_update_interval_seconds(config_entry: ConfigEntry) -> int:
     if (interval := config_entry.options.get(CONF_INSTANT_SCAN_INTERVAL)) is not None:
         return int(interval)
     return DEFAULT_INSTANT_UPDATE_INTERVAL_SECONDS
+
+
+def get_stale_multiplier(config_entry: ConfigEntry) -> float:
+    """Return how many expected check-in intervals may pass before stale."""
+    if (value := config_entry.options.get(CONF_STALE_MULTIPLIER)) is not None:
+        return float(value)
+    return DEFAULT_STALE_MULTIPLIER
+
+
+def get_stale_minimum_seconds(config_entry: ConfigEntry) -> int:
+    """Return the floor applied to every camera's staleness threshold."""
+    if (value := config_entry.options.get(CONF_STALE_MINIMUM)) is not None:
+        return int(value)
+    return DEFAULT_STALE_MINIMUM_SECONDS
