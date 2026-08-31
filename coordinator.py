@@ -82,6 +82,13 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return the API device handle."""
         return self._device
 
+    @property
+    def camera_ids(self) -> set[str]:
+        """Return the ids of the cameras currently known to the API."""
+        if not self.data:
+            return set()
+        return set(self.data.get("cameras", {}))
+
     def get_camera(self, camera_id: str) -> dict[str, Any] | None:
         """Return a camera by id."""
         if not self.data:
@@ -168,6 +175,11 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Force an immediate full camera data refresh."""
         self._force_full_refresh = True
         await self.async_request_refresh()
+
+    async def async_refresh_camera_list(self) -> None:
+        """Fetch the full camera list now, bypassing the request debouncer."""
+        self._force_full_refresh = True
+        await self.async_refresh()
 
     def _should_discovery_refresh(self, now: datetime) -> bool:
         """Return True when the full camera list should be fetched."""
