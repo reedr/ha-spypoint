@@ -64,10 +64,16 @@ class SpypointLockPositionSwitch(SpypointEntity, SwitchEntity, RestoreEntity):
         self._attr_translation_key = _ENTITY_SUFFIX
 
     async def async_added_to_hass(self) -> None:
-        """Restore lock state to the coordinator."""
+        """Restore lock state to the coordinator.
+
+        Uses restore_position_locked so a restart re-applies the lock without
+        re-freezing the camera at its current API position. Normally the lock
+        is already restored from the position lock store before entities are
+        added, making this a no-op.
+        """
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) and last_state.state == STATE_ON:
-            self.coordinator.set_position_locked(self.camera_id, True)
+            self.coordinator.restore_position_locked(self.camera_id)
 
     @property
     def is_on(self) -> bool:

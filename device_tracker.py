@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.device_tracker import SourceType
-from homeassistant.components.device_tracker.config_entry import TrackerEntity
+from homeassistant.components.device_tracker import SourceType, TrackerEntity
 from homeassistant.const import ATTR_LATITUDE, ATTR_LONGITUDE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -92,7 +91,23 @@ class SpypointCameraTracker(SpypointEntity, TrackerEntity, RestoreEntity):
                     if key in _COORDINATE_ATTRIBUTES
                 }:
                     self._attr_extra_state_attributes = restored_attrs
+        self._async_seed_locked_position()
         self._async_update_coordinates()
+
+    @callback
+    def _async_seed_locked_position(self) -> None:
+        """Give a locked camera with no frozen position the restored one."""
+        if not self.coordinator.is_position_locked(self.camera_id):
+            return
+        if self.coordinator.get_locked_coordinates(self.camera_id) is not None:
+            return
+        if self._attr_latitude is None or self._attr_longitude is None:
+            return
+        self.coordinator.seed_locked_coordinates(
+            self.camera_id,
+            (self._attr_latitude, self._attr_longitude),
+            self._attr_extra_state_attributes or None,
+        )
 
     @callback
     def _handle_coordinator_update(self) -> None:

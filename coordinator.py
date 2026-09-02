@@ -142,14 +142,18 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     def set_position_locked(self, camera_id: str, locked: bool) -> None:
-        """Lock or unlock device tracker updates for a camera."""
+        """Lock or unlock device tracker updates for a camera.
+
+        Coordinates are captured only on an unlocked -> locked transition. A
+        camera that is already locked keeps the position it was frozen at:
+        re-capturing here would silently re-baseline the lock onto whatever
+        the API reports at that moment. Toggle the switch off and on to
+        deliberately re-freeze at the current position.
+        """
         if locked:
-            camera = self.get_camera(camera_id)
-            if camera is not None:
-                if (coords := get_camera_coordinates(camera)) is not None:
-                    self._locked_coordinates[camera_id] = coords
-                if (attrs := get_camera_coordinate_attributes(camera)) is not None:
-                    self._locked_coordinate_attributes[camera_id] = attrs
+            if camera_id in self._position_locked:
+                return
+            self._capture_locked_position(camera_id)
             self._position_locked.add(camera_id)
         else:
             self._position_locked.discard(camera_id)
@@ -157,6 +161,59 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._locked_coordinate_attributes.pop(camera_id, None)
         self.async_update_listeners()
         self.hass.async_create_task(self._async_save_position_locks())
+
+    @callback
+    def restore_position_locked(self, camera_id: str) -> None:
+        """Re-apply a lock from a restored switch state.
+
+        Unlike set_position_locked this never captures coordinates: the frozen
+        position comes from the position lock store, or from the device
+        tracker's own restored state via seed_locked_coordinates.
+        """
+        if camera_id in self._position_locked:
+            return
+        self._position_locked.add(camera_id)
+        self.async_update_listeners()
+        self.hass.async_create_task(self._async_save_position_locks())
+
+    @callback
+    def seed_locked_coordinates(
+        self,
+        camera_id: str,
+        coordinates: tuple[float, float],
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        """Adopt a restored position for a lock that has no frozen coordinates.
+
+        Covers locks stored before coordinates were persisted. Never overwrites
+        coordinates that are already frozen.
+        """
+        if camera_id not in self._position_locked:
+            return
+        if camera_id in self._locked_coordinates:
+            return
+        _LOGGER.debug(
+            "Seeding frozen position for locked camera %s from restored state",
+            camera_id,
+        )
+        self._locked_coordinates[camera_id] = coordinates
+        if attributes:
+            self._locked_coordinate_attributes[camera_id] = attributes
+        self.hass.async_create_task(self._async_save_position_locks())
+
+    def _capture_locked_position(self, camera_id: str) -> None:
+        """Freeze the camera's current coordinates at the moment of locking."""
+        if (camera := self.get_camera(camera_id)) is None:
+            return
+        if (coords := get_camera_coordinates(camera)) is not None:
+            self._locked_coordinates[camera_id] = coords
+        if (attrs := get_camera_coordinate_attributes(camera)) is not None:
+            self._locked_coordinate_attributes[camera_id] = attrs
+        _LOGGER.debug(
+            "Freezing position for camera %s at %s",
+            camera_id,
+            self._locked_coordinates.get(camera_id),
+        )
 
     async def _async_load_position_locks(self) -> None:
         """Restore persisted GPS lock state."""
