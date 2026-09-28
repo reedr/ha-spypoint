@@ -126,6 +126,10 @@ class SpypointConnectionError(HomeAssistantError):
     """Error to indicate a connection problem."""
 
 
+class SpypointRequestError(HomeAssistantError):
+    """Spypoint rejected a request; the message is Spypoint's own explanation."""
+
+
 class SpypointDeviceResponse:
     """API response wrapper."""
 
@@ -139,8 +143,10 @@ class SpypointDeviceResponse:
         )
         self._status_code = resp.status_code
         self._result: Any = None
+        self._error_message: str | None = None
 
         if not self.is_success:
+            self._error_message = _error_message(resp)
             return
 
         if not resp.text:
@@ -172,6 +178,34 @@ class SpypointDeviceResponse:
     def has_result(self) -> bool:
         """Return true if the response body is valid."""
         return self.is_success and self._result is not None
+
+    @property
+    def error_message(self) -> str | None:
+        """Return Spypoint's explanation of a failed request, if it gave one."""
+        return self._error_message
+
+
+def _error_message(resp: httpx.Response) -> str:
+    """Extract a readable reason from a failed response.
+
+    Spypoint answers a refused request with a JSON body such as
+    {"error": "User has run out of videos", "message": "User has run out of
+    videos"}; prefer "message", then "error", then the plain-text body, then
+    the HTTP reason phrase.
+    """
+    try:
+        body = resp.json()
+    except (JSONDecodeError, ValueError):
+        body = None
+    if isinstance(body, dict):
+        for key in ("message", "error"):
+            value = body.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    text = resp.text.strip()
+    if text and len(text) <= 200 and not text.startswith("<"):
+        return text
+    return f"HTTP {resp.status_code} {resp.reason_phrase}".strip()
 
 
 class SpypointDevice:
@@ -249,6 +283,9 @@ class SpypointDevice:
         """Make an API request."""
         headers = self._auth_headers() if auth else {}
         tries = 2
+        # A request that never gets an answer must not leave the previous
+        # request's response behind for the caller to misread.
+        self._response = None
 
         while tries > 0:
             try:
@@ -417,6 +454,11 @@ class SpypointDevice:
         if not await self._request("POST", path, json={"quality": "hd"}):
             if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
                 raise SpypointAuthError
+            # note: a response means Spypoint refused the request (e.g. "User
+            #       has run out of videos"); no response means it never
+            #       arrived.
+            if self._response and self._response.error_message:
+                raise SpypointRequestError(self._response.error_message)
             raise SpypointConnectionError
 
         assert self._response is not None

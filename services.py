@@ -32,7 +32,7 @@ from .const import (
     SERVICE_REQUEST_HDVIDEO,
 )
 from .coordinator import SpypointCoordinator
-from .device import SpypointAuthError, SpypointConnectionError
+from .device import SpypointAuthError, SpypointConnectionError, SpypointRequestError
 
 SERVICE_GET_PHOTOS_SCHEMA = vol.Schema(
     {
@@ -187,6 +187,8 @@ async def async_request_hdvideo(call: ServiceCall) -> ServiceResponse:
         result = await coordinator.device.async_request_hd_video(camera_id, photo_id)
     except SpypointAuthError as err:
         raise HomeAssistantError("Spypoint authentication failed") from err
+    except SpypointRequestError as err:
+        raise HomeAssistantError(f"Spypoint refused the HD video request: {err}") from err
     except SpypointConnectionError as err:
         raise HomeAssistantError("Unable to request HD video from Spypoint") from err
 

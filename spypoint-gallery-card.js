@@ -160,7 +160,15 @@ class SpypointGalleryCard extends HTMLElement {
       btn.disabled = false;
       btn.classList.remove('busy');
       if (icon) icon.setAttribute('icon', 'mdi:alert-circle');
-      btn.title = `Request failed: ${err.message || err}`;
+      const reason = err.message || String(err);
+      btn.title = `Request failed: ${reason}`;
+      // The tooltip alone is easy to miss (and absent on touch); show the
+      // reason, e.g. Spypoint's "User has run out of videos", as a toast too.
+      this.dispatchEvent(new CustomEvent('hass-notification', {
+        detail: { message: reason },
+        bubbles: true,
+        composed: true,
+      }));
       console.error('request_hdvideo failed', err);
     }
   }
