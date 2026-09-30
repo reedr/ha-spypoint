@@ -4,9 +4,20 @@ Custom component integration for [Spypoint](https://www.spypoint.com) cellular t
 
 ## Installation
 
-1. Copy this repository into your Home Assistant `custom_components` directory as `custom_components/spypoint`.
+1. In HACS, add this repository as a custom repository (category: Integration) and download
+   **Spypoint Trail Cameras**. It installs to `custom_components/spypoint`.
 2. Restart Home Assistant.
 3. Add the integration via **Settings → Devices & services → Add integration** and search for **Spypoint Trail Cameras**.
+
+Updating an earlier hand-copied install: HACS replaces the files in `custom_components/spypoint`;
+the domain is unchanged, so the config entry, devices and entities carry over.
+
+## Gallery card
+
+The integration serves its Lovelace card, `custom:spypoint-gallery-card`, and loads it on every
+dashboard; there is no dashboard resource to add, and HACS updates it with the integration. If you
+previously added `/local/spypoint-gallery-card.js` as a resource, remove that resource (and the
+file in `www/`) so the card isn't loaded twice.
 
 ## Configuration
 
@@ -86,4 +97,6 @@ This integration uses the unofficial Spypoint REST API at `https://restapi.spypo
 
 ## Development
 
-This integration follows the same layout as the [hass2n](https://github.com/reedr/hass2n) custom component.
+The integration lives in `custom_components/spypoint`; the card source is
+`custom_components/spypoint/frontend/spypoint-gallery-card.js`. `docs/api.txt` has notes on the
+Spypoint API. Tests: `pip install -r requirements-test.txt && pytest`.

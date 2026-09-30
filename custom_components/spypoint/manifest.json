@@ -1,12 +1,18 @@
 {
   "domain": "spypoint",
   "name": "Spypoint Trail Cameras",
-  "version": "0.1.0",
-  "integration_type": "hub",
-  "codeowners": ["@reedr"],
+  "codeowners": [
+    "@reedr"
+  ],
   "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http"
+  ],
   "documentation": "https://github.com/reedr/ha-spypoint",
+  "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "quality_scale": "bronze",
-  "requirements": []
+  "issue_tracker": "https://github.com/reedr/ha-spypoint/issues",
+  "requirements": [],
+  "version": "0.2.0"
 }

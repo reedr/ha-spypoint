@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
-from homeassistant.config_entries import ConfigType
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
@@ -26,9 +31,23 @@ _PLATFORMS: list[Platform] = [
 ]
 
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+CARD_URL = "/spypoint/spypoint-gallery-card.js"
+CARD_PATH = Path(__file__).parent / "frontend" / "spypoint-gallery-card.js"
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up Spypoint services."""
+    """Set up Spypoint services and the gallery card."""
     await async_setup_services(hass)
+
+    # Serve the card from the integration so HACS updates it along with the code.
+    # The version query makes browsers fetch the new file after an update.
+    integration = await async_get_integration(hass, DOMAIN)
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL, str(CARD_PATH), cache_headers=True)]
+    )
+    add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
     return True
 
 
