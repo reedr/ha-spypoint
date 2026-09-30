@@ -98,5 +98,4 @@ This integration uses the unofficial Spypoint REST API at `https://restapi.spypo
 ## Development
 
 The integration lives in `custom_components/spypoint`; the card source is
-`custom_components/spypoint/frontend/spypoint-gallery-card.js`. `docs/api.txt` has notes on the
-Spypoint API. Tests: `pip install -r requirements-test.txt && pytest`.
+`custom_components/spypoint/frontend/spypoint-gallery-card.js`. Tests: `pip install -r requirements-test.txt && pytest`.
