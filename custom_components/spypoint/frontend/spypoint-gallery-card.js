@@ -794,11 +794,13 @@ class SpypointGalleryCard extends HTMLElement {
   }
 }
 
-customElements.define('spypoint-gallery-card', SpypointGalleryCard);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'spypoint-gallery-card',
-  name: 'Spypoint Gallery Card',
-  description: 'SPYPOINT gallery: cloud photos or AI detections, camera filter, 2h time windows, HD request/playback.',
-});
+// Guarded: an older cached copy may already have defined it.
+if (!customElements.get('spypoint-gallery-card')) {
+  customElements.define('spypoint-gallery-card', SpypointGalleryCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: 'spypoint-gallery-card',
+    name: 'Spypoint Gallery Card',
+    description: 'SPYPOINT gallery: cloud photos or AI detections, camera filter, 2h time windows, HD request/playback.',
+  });
+}

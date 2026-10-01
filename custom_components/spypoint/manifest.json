@@ -7,12 +7,13 @@
   "config_flow": true,
   "dependencies": [
     "frontend",
-    "http"
+    "http",
+    "lovelace"
   ],
   "documentation": "https://github.com/reedr/ha-spypoint",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/reedr/ha-spypoint/issues",
   "requirements": [],
-  "version": "0.2.1"
+  "version": "0.2.2"
 }

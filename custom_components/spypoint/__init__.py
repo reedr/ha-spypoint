@@ -7,6 +7,7 @@ from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -47,8 +48,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(CARD_URL, str(CARD_PATH), cache_headers=True)]
     )
-    add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
+    await _async_register_card(hass, f"{CARD_URL}?v={integration.version}")
     return True
+
+
+async def _async_register_card(hass: HomeAssistant, url: str) -> None:
+    """Load the card on every dashboard, including in the Companion apps.
+
+    A dashboard resource is what the mobile apps reliably load (they can run a
+    cached frontend page that predates extra_js_url injection), so keep one
+    resource pointing at the current version. With YAML-mode resources the
+    collection can't be written, so fall back to injecting the module.
+    """
+    lovelace = hass.data.get(LOVELACE_DATA)
+    resources = getattr(lovelace, "resources", None)
+    if lovelace is None or lovelace.resource_mode != "storage" or resources is None:
+        add_extra_js_url(hass, url)
+        return
+    await resources.async_get_info()  # loads the collection
+    ours = [item for item in resources.async_items() if item["url"].split("?")[0] == CARD_URL]
+    if not ours:
+        await resources.async_create_item({"res_type": "module", "url": url})
+        _LOGGER.info("Added dashboard resource %s", url)
+        return
+    first, *extra = ours
+    if first["url"] != url or first.get("type") != "module":
+        await resources.async_update_item(first["id"], {"res_type": "module", "url": url})
+        _LOGGER.info("Updated dashboard resource to %s", url)
+    for item in extra:
+        await resources.async_delete_item(item["id"])
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SpypointConfigEntry) -> bool:
@@ -97,11 +125,7 @@ async def async_remove_config_entry_device(
         # camera that is still active.
         return False
 
-    camera_ids = {
-        identifier
-        for domain, identifier in device_entry.identifiers
-        if domain == DOMAIN
-    }
+    camera_ids = {identifier for domain, identifier in device_entry.identifiers if domain == DOMAIN}
     if not camera_ids:
         # Device carries no identifier owned by this integration.
         return True
