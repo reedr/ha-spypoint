@@ -85,6 +85,9 @@ class SpypointStaleBinarySensor(SpypointEntity, BinarySensorEntity):
             )
         )
 
+    # Changes every minute; recording it would write a row per camera per minute.
+    _unrecorded_attributes = frozenset({"seconds_since_update"})
+
     @callback
     def _async_recheck(self, now: datetime) -> None:
         """Re-evaluate the elapsed time since the last check-in."""

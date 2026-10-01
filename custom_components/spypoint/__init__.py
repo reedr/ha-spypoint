@@ -58,17 +58,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpypointConfigEntry) -> 
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
     )
+    # Registered first so it also runs when setup fails, and after the
+    # coordinator's own shutdown.
+    entry.async_on_unload(device.async_close)
     coordinator = SpypointCoordinator(hass, entry, device)
     entry.runtime_data = coordinator
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: SpypointConfigEntry) -> None:
+    """Reload once the new options are saved."""
+    hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SpypointConfigEntry) -> bool:
     """Unload a config entry."""
-    if entry.runtime_data is not None:
-        await entry.runtime_data.device.async_close()
     return await hass.config_entries.async_unload_platforms(entry, _PLATFORMS)
 
 

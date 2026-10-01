@@ -55,9 +55,12 @@ def _signal_value(camera: dict[str, Any]) -> int | None:
 def _temperature_value(camera: dict[str, Any]) -> float | None:
     """Extract temperature."""
     temperature = (camera.get("status") or {}).get("temperature") or {}
-    if (value := temperature.get("value")) is None:
+    if not isinstance(temperature, dict) or (value := temperature.get("value")) is None:
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _memory_used_value(camera: dict[str, Any]) -> int | None:
@@ -308,6 +311,15 @@ class SpypointSensor(SpypointEntity, SensorEntity):
         if not (camera := self.camera):
             return None
         return self.entity_description.value_fn(camera)
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        """Return the unit; temperature follows the unit the camera reports."""
+        if self.entity_description.key == "temperature" and (camera := self.camera):
+            temperature = (camera.get("status") or {}).get("temperature") or {}
+            if isinstance(temperature, dict) and temperature.get("unit") == "C":
+                return UnitOfTemperature.CELSIUS
+        return super().native_unit_of_measurement
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

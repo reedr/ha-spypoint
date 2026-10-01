@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 import logging
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import SpypointConfigEntry, SpypointCoordinator
+from .device import SpypointAuthError, SpypointConnectionError, SpypointRequestError
 from .entity import SpypointEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,6 +62,19 @@ class SpypointButton(SpypointEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Handle the button press."""
 
+    async def _async_run(self, request: Awaitable[bool]) -> None:
+        """Run a camera request; report a refusal or failure to the caller."""
+        try:
+            ok = await request
+        except SpypointAuthError as err:
+            raise HomeAssistantError("Spypoint authentication failed") from err
+        except SpypointRequestError as err:
+            raise HomeAssistantError(f"Spypoint refused the request: {err}") from err
+        except SpypointConnectionError as err:
+            raise HomeAssistantError("Unable to reach Spypoint") from err
+        if not ok:
+            raise HomeAssistantError("Spypoint did not accept the request")
+
 
 class SpypointTakePhotoButton(SpypointButton):
     """Request an on-demand photo."""
@@ -75,7 +91,7 @@ class SpypointTakePhotoButton(SpypointButton):
 
     async def async_press(self) -> None:
         """Request a photo from the camera."""
-        await self.coordinator.device.async_take_photo(self.camera_id)
+        await self._async_run(self.coordinator.device.async_take_photo(self.camera_id))
 
 
 class SpypointTakeVideoButton(SpypointButton):
@@ -93,7 +109,7 @@ class SpypointTakeVideoButton(SpypointButton):
 
     async def async_press(self) -> None:
         """Request a video from the camera."""
-        await self.coordinator.device.async_take_video(self.camera_id)
+        await self._async_run(self.coordinator.device.async_take_video(self.camera_id))
 
 
 class SpypointCaptureAtSyncButton(SpypointButton):
@@ -111,4 +127,6 @@ class SpypointCaptureAtSyncButton(SpypointButton):
 
     async def async_press(self) -> None:
         """Request a photo at the next sync."""
-        await self.coordinator.device.async_request_capture_at_sync(self.camera_id)
+        await self._async_run(
+            self.coordinator.device.async_request_capture_at_sync(self.camera_id)
+        )

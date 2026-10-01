@@ -149,7 +149,7 @@ class OptionsFlowHandler(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage Spypoint options."""
         if user_input is not None:
-            result = self.async_create_entry(
+            return self.async_create_entry(
                 data={
                     CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL_MINUTES] * 60,
                     CONF_INSTANT_SCAN_INTERVAL: (
@@ -159,8 +159,6 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_STALE_MINIMUM: user_input[CONF_STALE_MINIMUM_MINUTES] * 60,
                 }
             )
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-            return result
 
         current_minutes = get_update_interval_seconds(self.config_entry) // 60
         current_instant_minutes = (

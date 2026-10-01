@@ -245,7 +245,13 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Perform one-time setup before the first refresh."""
         await self._async_load_position_locks()
         await self.device.async_setup()
-        await self.device.login()
+        try:
+            await self.device.login()
+        except SpypointAuthError as err:
+            # A changed password must start reauth, not retry forever.
+            raise ConfigEntryAuthFailed from err
+        except SpypointConnectionError as err:
+            raise UpdateFailed("Unable to reach Spypoint API") from err
 
     async def async_refresh_cameras(self) -> None:
         """Force an immediate full camera data refresh."""
@@ -401,15 +407,19 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             cameras, fetched_ids
         )
 
+        photo_failed: set[str] = set()
         if cameras_needing_photos:
             try:
                 fetched = await self.device.get_latest_photos(cameras_needing_photos)
             except SpypointAuthError as err:
                 raise ConfigEntryAuthFailed from err
+            # A failed fetch is missing from the result: keep the photo we have,
+            # and don't record the new count, so the next poll retries it.
             latest_photos.update(fetched)
+            photo_failed = set(cameras_needing_photos) - set(fetched)
 
         previous_new_captures = dict((self.data or {}).get("new_captures", {}))
-        self._async_process_photo_count_changes(cameras, fetched_ids)
+        self._async_process_photo_count_changes(cameras, fetched_ids - photo_failed)
 
         new_captures = {
             camera_id: count
@@ -483,7 +493,9 @@ class SpypointCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ):
                 continue
 
-            device = device_registry.async_get_device(identifiers={(DOMAIN, camera_id)})
+            device = device_registry.async_get_device_by_identifier(
+                (DOMAIN, camera_id), self.config_entry.entry_id
+            )
             count_entity_id = entity_registry.async_get_entity_id(
                 SENSOR_DOMAIN, DOMAIN, f"{camera_id}_photo_count"
             )

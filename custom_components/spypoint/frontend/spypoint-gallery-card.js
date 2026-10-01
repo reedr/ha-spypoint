@@ -75,9 +75,7 @@ class SpypointGalleryCard extends HTMLElement {
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
-    if (first && this._config.refresh_interval > 0) {
-      this._timer = setInterval(() => this._fetch(), this._config.refresh_interval * 1000);
-    }
+    if (first) this._startTimer();
     // Populate the camera selector once the device registry is available, without
     // fetching any photos (the Load Photos button is still required to show images).
     // The slider keeps its limit-option value from the constructor.
@@ -87,8 +85,22 @@ class SpypointGalleryCard extends HTMLElement {
     }
   }
 
+  connectedCallback() {
+    if (this._hass) this._startTimer();
+  }
+
   disconnectedCallback() {
     if (this._timer) clearInterval(this._timer);
+    this._timer = null;
+  }
+
+  // Auto-refresh only once photos have been loaded by hand (Load Photos), and
+  // restart after the card is re-attached (e.g. switching views).
+  _startTimer() {
+    if (this._timer || !this._config || !(this._config.refresh_interval > 0)) return;
+    this._timer = setInterval(() => {
+      if (this._loaded) this._fetch();
+    }, this._config.refresh_interval * 1000);
   }
 
   getGridOptions() {
@@ -308,19 +320,19 @@ class SpypointGalleryCard extends HTMLElement {
 
   _playVideo(url) {
     this._lightbox(
-      `<video src="${url}" controls autoplay playsinline ` +
+      `<video src="${this._esc(url)}" controls autoplay playsinline ` +
       'style="max-width:100%;max-height:100%;border-radius:8px;"></video>');
   }
 
   _showImage(url) {
     this._lightbox(
-      `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:8px;" />`);
+      `<img src="${this._esc(url)}" style="max-width:100%;max-height:100%;border-radius:8px;" />`);
   }
 
   _playSlideshow(frames) {
     let timer = null;
     this._lightbox(
-      `<img class="sgc-slide" src="${frames[0]}" ` +
+      `<img class="sgc-slide" src="${this._esc(frames[0])}" ` +
       'style="max-width:100%;max-height:100%;border-radius:8px;" />',
       (overlay) => {
         frames.forEach((f) => { const im = new Image(); im.src = f; }); // preload
@@ -379,7 +391,7 @@ class SpypointGalleryCard extends HTMLElement {
       : '';
     const ms = d.infer_ms != null && d.infer_ms !== '' ? `${(Number(d.infer_ms) / 1000).toFixed(1)} s` : '';
     const rows = [
-      ['Species', `${this._cap(d.species)}${d.subtype ? ` (${e(d.subtype)})` : ''}${d.count ? ` &times;${e(d.count)}` : ''}`],
+      ['Species', `${this._cap(e(d.species))}${d.subtype ? ` (${e(d.subtype)})` : ''}${d.count ? ` &times;${e(d.count)}` : ''}`],
       ['Confidence', `${e(d.confidence)}%`],
       ['Camera', e(d.camera_name)],
       ['Captured', e(d.captured)],
@@ -497,7 +509,7 @@ class SpypointGalleryCard extends HTMLElement {
       if (!passes(p)) return '';
       const d = (p && p.detection) || {};
       const cls = this._verdictClass(d);
-      const species = `${this._cap(d.species)}${d.subtype ? ` (${e(d.subtype)})` : ''}${d.count > 1 ? ` \u00d7${e(d.count)}` : ''}`;
+      const species = `${this._cap(e(d.species))}${d.subtype ? ` (${e(d.subtype)})` : ''}${d.count > 1 ? ` \u00d7${e(d.count)}` : ''}`;
       const first = d.first_species && d.first_species !== d.species
         ? `<span class="first">${this._cap(e(d.first_species))} \u2192</span> ` : '';
       const verify = d.verified === 'spypoint' ? 'SP' : d.verified === '1' ? '\u2713' : d.verified === '2' ? '\u21bb' : d.verified === '0' ? '\u2717' : d.verified === 'shadow' ? '2nd' : '';
@@ -526,7 +538,7 @@ class SpypointGalleryCard extends HTMLElement {
 
     const camOpts = ['<option value="">All cameras</option>']
       .concat(this._cameras().map((cam) =>
-        `<option value="${cam.id}"${cam.id === this._selectedCamera ? ' selected' : ''}>${cam.name}</option>`))
+        `<option value="${this._esc(cam.id)}"${cam.id === this._selectedCamera ? ' selected' : ''}>${this._esc(cam.name)}</option>`))
       .join('');
 
     const srcSel = `<select class="srcsel" title="Source">` +
@@ -554,7 +566,7 @@ class SpypointGalleryCard extends HTMLElement {
     const items = listMode ? '' : this._photos.map((p, i) => {
       if (!passes(p)) return ''; // hide filtered-out photos, keep index i intact
       const src = this._toSrc(p);
-      const caption = (p && p.caption) ? `<div class="cap">${p.caption}</div>` : '';
+      const caption = (p && p.caption) ? `<div class="cap">${this._esc(p.caption)}</div>` : '';
       const tags = (p && (p.tag || p.tags)) || [];
       const has = (t) => Array.isArray(tags) && tags.includes(t);
 
@@ -574,7 +586,7 @@ class SpypointGalleryCard extends HTMLElement {
         ? `<button class="play" data-idx="${i}" title="Play HD video"><ha-icon icon="mdi:play-circle"></ha-icon></button>`
         : '';
 
-      return `<figure data-idx="${i}">${corner}${playBadge}<img src="${src}" loading="lazy" />${caption}</figure>`;
+      return `<figure data-idx="${i}">${corner}${playBadge}<img src="${this._esc(src)}" loading="lazy" />${caption}</figure>`;
     }).join('');
 
     if (this._hoverTimer) { clearInterval(this._hoverTimer); this._hoverTimer = null; }
@@ -669,7 +681,7 @@ class SpypointGalleryCard extends HTMLElement {
         }
       </style>
       <div class="header">
-        <span class="name">${this._source === 'detections' ? ({ detections: 'Detections', rejections: 'Rejections', disagree: 'Models disagree', all: 'All classified' }[this._mode]) : c.title}${shownCount ? ` (${shownCount})` : ''}</span>
+        <span class="name">${this._source === 'detections' ? ({ detections: 'Detections', rejections: 'Rejections', disagree: 'Models disagree', all: 'All classified' }[this._mode]) : this._esc(c.title)}${shownCount ? ` (${shownCount})` : ''}</span>
         <ha-icon-button title="Refresh"><ha-icon icon="mdi:refresh"></ha-icon></ha-icon-button>
       </div>
       <div class="controls">
@@ -687,7 +699,7 @@ class SpypointGalleryCard extends HTMLElement {
         </label>
         <button class="load">Load Photos</button>
       </div>
-      ${this._error ? `<div class="err">${this._error}</div>` : ''}
+      ${this._error ? `<div class="err">${this._esc(this._error)}</div>` : ''}
       ${!this._error && shownCount === 0 ? `<div class="empty">${!this._loaded ? `Press \u201CLoad Photos\u201D to load ${this._source === 'detections' ? 'detections' : 'images'}.` : ((this._taggedOnly || this._videoOnly) && this._photos.length ? 'No matching photos.' : 'No photos.')}</div>` : ''}
       ${listMode && shownCount
         ? `<div class="list">

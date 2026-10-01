@@ -24,6 +24,6 @@ async def test_card_served_and_registered(hass: HomeAssistant) -> None:
 
     paths = [p for call in register.call_args_list for p in call.args[0]]
     assert (CARD_URL, str(CARD_PATH)) in [(p.url_path, p.path) for p in paths]
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=0.2.0"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=0.2.1"
     assert hass.services.has_service("spypoint", "get_photos")
     assert hass.services.has_service("spypoint", "request_hdvideo")

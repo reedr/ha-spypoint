@@ -30,14 +30,22 @@ def camera_name(camera: dict[str, Any]) -> str:
     return config.get("name") or status.get("model") or camera.get("id", "Spypoint Camera")
 
 
+def _int(data: Any, key: str) -> int | None:
+    """Read an integer field, tolerating odd API data (it feeds every update)."""
+    if not isinstance(data, dict) or (value := data.get(key)) is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def photo_count(camera: dict[str, Any]) -> int | None:
     """Extract photos used in the current billing cycle."""
     subscriptions = camera.get("subscriptions") or []
     if not subscriptions:
         return None
-    if (value := subscriptions[0].get("photoCount")) is None:
-        return None
-    return int(value)
+    return _int(subscriptions[0], "photoCount")
 
 
 def photo_limit(camera: dict[str, Any]) -> int | None:
@@ -45,9 +53,7 @@ def photo_limit(camera: dict[str, Any]) -> int | None:
     subscriptions = camera.get("subscriptions") or []
     if not subscriptions:
         return None
-    if (value := subscriptions[0].get("photoLimit")) is None:
-        return None
-    return int(value)
+    return _int(subscriptions[0], "photoLimit")
 
 
 def transmit_freq(camera: dict[str, Any]) -> int | None:

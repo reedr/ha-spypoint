@@ -135,11 +135,15 @@ class SpypointDeviceResponse:
 
     def __init__(self, resp: httpx.Response) -> None:
         """Initialize from an HTTP response."""
+        # Login replies carry the bearer token and photo lists carry signed
+        # URLs; log only the status for those.
+        path = resp.request.url.path if resp.request else ""
+        quiet = path.endswith(PATH_LOGIN) or path.endswith(PATH_PHOTO_ALL)
         _LOGGER.debug(
             "<- %d %s: %s",
             resp.status_code,
             resp.reason_phrase,
-            re.sub(r"\s+", " ", resp.text),
+            "(body not logged)" if quiet else re.sub(r"\s+", " ", resp.text),
         )
         self._status_code = resp.status_code
         self._result: Any = None
@@ -208,6 +212,10 @@ def _error_message(resp: httpx.Response) -> str:
     return f"HTTP {resp.status_code} {resp.reason_phrase}".strip()
 
 
+# Concurrent requests to the cloud API; per-camera fetches are gathered.
+MAX_CONCURRENT_REQUESTS = 5
+
+
 class SpypointDevice:
     """Spypoint cloud API interface."""
 
@@ -225,7 +233,8 @@ class SpypointDevice:
         self._token: str | None = None
         self._user_id: str | None = None
         self._account_title: str | None = None
-        self._response: SpypointDeviceResponse | None = None
+        self._login_lock = asyncio.Lock()
+        self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
     def _create_client(self) -> httpx.AsyncClient:
         """Create the HTTP client."""
@@ -279,87 +288,97 @@ class SpypointDevice:
         *,
         json: dict[str, Any] | list[Any] | None = None,
         auth: bool = True,
-    ) -> bool:
-        """Make an API request."""
-        headers = self._auth_headers() if auth else {}
-        tries = 2
-        # A request that never gets an answer must not leave the previous
-        # request's response behind for the caller to misread.
-        self._response = None
+    ) -> SpypointDeviceResponse | None:
+        """Make an API request; return its response, or None if none arrived.
 
+        A 401 renews the token once and retries. Each call gets its own
+        response, so concurrent requests can't read each other's.
+        """
+        response: SpypointDeviceResponse | None = None
+        tries = 2
         while tries > 0:
+            token = self._token
+            headers = self._auth_headers() if auth else {}
             try:
                 _LOGGER.debug("-> %s %s", method, path)
                 client = await self._ensure_client()
-                response = await client.request(
-                    method, path, json=json, headers=headers
-                )
-                self._response = SpypointDeviceResponse(response)
-
-                if (
-                    auth
-                    and self._response.status_code == httpx.codes.UNAUTHORIZED
-                    and path != PATH_LOGIN
-                ):
-                    await self.login(force=True)
-                    headers = self._auth_headers()
-                    tries -= 1
-                    continue
-
-                return self._response.is_success
-
+                async with self._semaphore:
+                    resp = await client.request(method, path, json=json, headers=headers)
+                response = SpypointDeviceResponse(resp)
             except httpx.HTTPError as exc:
                 _LOGGER.error("Request error (%s %s): %s", method, path, exc)
                 tries -= 1
+                continue
 
-        return False
+            if auth and response.status_code == httpx.codes.UNAUTHORIZED and path != PATH_LOGIN:
+                await self._relogin(token)
+                tries -= 1
+                continue
+            return response
+        return response
 
-    async def login(self, *, force: bool = False) -> bool:
-        """Authenticate with the Spypoint cloud."""
-        if not force and self._token:
-            return True
+    async def _relogin(self, stale_token: str | None) -> None:
+        """Renew the token once, however many requests saw it expire."""
+        async with self._login_lock:
+            if self._token != stale_token:
+                return  # another request already renewed it
+            await self._do_login()
 
-        if not await self._request(
+    async def _do_login(self) -> bool:
+        response = await self._request(
             "POST",
             PATH_LOGIN,
             json={"username": self._username, "password": self._password},
             auth=False,
-        ):
-            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
+        )
+        if response is None or not response.is_success:
+            if response is not None and response.status_code == httpx.codes.UNAUTHORIZED:
                 raise SpypointAuthError
             raise SpypointConnectionError
-
-        assert self._response is not None
-        body = self._response.result
+        body = response.result if isinstance(response.result, dict) else {}
         self._token = body.get("token")
         self._user_id = body.get("uuid") or body.get("id")
         self._account_title = body.get("email") or self._username
         return self._token is not None and self._user_id is not None
 
+    async def login(self, *, force: bool = False) -> bool:
+        """Authenticate with the Spypoint cloud."""
+        if not force and self._token:
+            return True
+        async with self._login_lock:
+            if not force and self._token:
+                return True
+            return await self._do_login()
+
+    async def _call(
+        self, method: str, path: str, *, json: dict[str, Any] | list[Any] | None = None
+    ) -> Any:
+        """Make an authenticated request and return its body, or raise."""
+        await self.login()
+        response = await self._request(method, path, json=json)
+        if response is None:
+            raise SpypointConnectionError
+        if not response.is_success:
+            if response.status_code == httpx.codes.UNAUTHORIZED:
+                raise SpypointAuthError
+            if response.error_message and 400 <= response.status_code < 500:
+                raise SpypointRequestError(response.error_message)
+            raise SpypointConnectionError
+        return response.result
+
     async def get_cameras(self) -> list[dict[str, Any]]:
         """Return all cameras on the account."""
-        await self.login()
-        if not await self._request("GET", PATH_CAMERA_ALL):
-            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
-                raise SpypointAuthError
-            raise SpypointConnectionError
-
-        assert self._response is not None
-        cameras = self._response.result
+        cameras = await self._call("GET", PATH_CAMERA_ALL)
         if not isinstance(cameras, list):
             raise SpypointConnectionError
-        return cameras
+        return [camera for camera in cameras if isinstance(camera, dict)]
 
     async def get_camera(self, camera_id: str) -> dict[str, Any]:
         """Return a single camera by id."""
-        await self.login()
-        if not await self._request("GET", f"{PATH_CAMERA}/{camera_id}"):
-            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
-                raise SpypointAuthError
-            raise SpypointConnectionError
-
-        assert self._response is not None
-        camera = self._response.result
+        try:
+            camera = await self._call("GET", f"{PATH_CAMERA}/{camera_id}")
+        except SpypointRequestError as err:
+            raise SpypointConnectionError from err
         if not isinstance(camera, dict):
             raise SpypointConnectionError
         return camera
@@ -395,8 +414,6 @@ class SpypointDevice:
         species: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Return recent photos for the given cameras."""
-        await self.login()
-
         if date_end is None:
             date_end = datetime.now(tz=UTC)
         if date_start is None:
@@ -413,66 +430,59 @@ class SpypointDevice:
             "customTags": [],
         }
 
-        if not await self._request("POST", PATH_PHOTO_ALL, json=payload):
-            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
-                raise SpypointAuthError
-            raise SpypointConnectionError
-
-        assert self._response is not None
-        photos = self._response.result.get("photos", [])
+        try:
+            body = await self._call("POST", PATH_PHOTO_ALL, json=payload)
+        except SpypointRequestError as err:
+            raise SpypointConnectionError from err
+        photos = body.get("photos", []) if isinstance(body, dict) else []
         if not isinstance(photos, list):
             return []
-        return photos
+        return [photo for photo in photos if isinstance(photo, dict)]
 
     async def get_latest_photos(
         self, camera_ids: list[str]
     ) -> dict[str, dict[str, Any] | None]:
-        """Return the latest photo for each camera."""
+        """Return the latest photo for each camera whose fetch succeeded.
 
-        async def _fetch(camera_id: str) -> tuple[str, dict[str, Any] | None]:
+        A camera whose fetch failed is left out (not mapped to None), so the
+        caller keeps the photo it already has and can retry later.
+        """
+
+        async def _fetch(camera_id: str) -> tuple[str, dict[str, Any] | None] | None:
             try:
                 photos = await self.get_photos([camera_id], limit=1)
             except SpypointConnectionError:
-                _LOGGER.debug(
-                    "Unable to fetch latest photo for camera %s", camera_id
-                )
-                return camera_id, None
+                _LOGGER.debug("Unable to fetch latest photo for camera %s", camera_id)
+                return None
             return camera_id, photos[0] if photos else None
 
         if not camera_ids:
             return {}
 
         results = await asyncio.gather(*(_fetch(camera_id) for camera_id in camera_ids))
-        return dict(results)
+        return dict(result for result in results if result is not None)
 
     async def async_request_hd_video(
         self, camera_id: str, photo_id: str
     ) -> dict[str, Any]:
-        """Request an HD version of a photo/video."""
-        await self.login()
-        path = f"{PATH_PHOTO_VIDEO}/{camera_id}/{photo_id}"
-        if not await self._request("POST", path, json={"quality": "hd"}):
-            if self._response and self._response.status_code == httpx.codes.UNAUTHORIZED:
-                raise SpypointAuthError
-            # note: a response means Spypoint refused the request (e.g. "User
-            #       has run out of videos"); no response means it never
-            #       arrived.
-            if self._response and self._response.error_message:
-                raise SpypointRequestError(self._response.error_message)
-            raise SpypointConnectionError
+        """Request an HD version of a photo/video.
 
-        assert self._response is not None
-        if isinstance(self._response.result, dict):
-            return self._response.result
-        return {}
+        Raises SpypointRequestError with Spypoint's explanation when it refuses
+        (e.g. "User has run out of videos").
+        """
+        path = f"{PATH_PHOTO_VIDEO}/{camera_id}/{photo_id}"
+        result = await self._call("POST", path, json={"quality": "hd"})
+        return result if isinstance(result, dict) else {}
 
     async def get_camera_settings(self, camera_id: str) -> dict[str, Any]:
         """Return settings for a camera."""
-        await self.login()
-        if not await self._request("GET", f"{PATH_CAMERA_SETTINGS}/{camera_id}"):
+        try:
+            settings = await self._call("GET", f"{PATH_CAMERA_SETTINGS}/{camera_id}")
+        except SpypointRequestError as err:
+            raise SpypointConnectionError from err
+        if not isinstance(settings, dict):
             raise SpypointConnectionError
-        assert self._response is not None
-        return self._response.result
+        return settings
 
     async def update_camera_settings(
         self, camera_id: str, settings: dict[str, Any]
@@ -480,16 +490,29 @@ class SpypointDevice:
         """Update camera settings."""
         current = await self.get_camera_settings(camera_id)
         current.update(settings)
-        return await self._request(
+        response = await self._request(
             "PUT", f"{PATH_CAMERA_SETTINGS}/{camera_id}", json=current
         )
+        return response is not None and response.is_success
 
     async def async_send_command(self, camera_id: str, command: str) -> bool:
-        """Send an on-demand camera command."""
+        """Send an on-demand camera command.
+
+        Only when Spypoint answers that the command endpoint doesn't apply to
+        this camera (400/404) does it fall back to switching the camera to
+        instant mode with a capture request. A network error or server error
+        never changes the camera's settings.
+        """
         await self.login()
         payload = {"cameraId": camera_id, "command": command}
-        if await self._request("POST", PATH_CAMERA_COMMAND, json=payload):
+        response = await self._request("POST", PATH_CAMERA_COMMAND, json=payload)
+        if response is not None and response.is_success:
             return True
+        if response is None or response.status_code not in (
+            httpx.codes.BAD_REQUEST,
+            httpx.codes.NOT_FOUND,
+        ):
+            return False
 
         settings = {
             "operationMode": "instant",
