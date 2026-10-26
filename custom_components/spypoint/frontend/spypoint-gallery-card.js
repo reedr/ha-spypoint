@@ -155,7 +155,29 @@ class SpypointGalleryCard extends HTMLElement {
     }
   }
 
-  // Naive local datetime string for the service's date_start / date_end.
+  // "Now" as the HOUSE's wall clock (Home Assistant's configured time zone), not the
+  // browser's: a laptop in another zone would otherwise anchor every window on its own
+  // clock. The returned Date's local fields (getHours etc.) carry the house time, so the
+  // block arithmetic below and the naive date_start / date_end strings are house-local,
+  // which is what the service expects. Falls back to the browser clock if HA has no zone.
+  _houseNow() {
+    const now = new Date();
+    const tz = this._hass && this._hass.config && this._hass.config.time_zone;
+    if (!tz) return now;
+    try {
+      const parts = {};
+      for (const x of new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(now)) parts[x.type] = x.value;
+      return new Date(Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+        Number(parts.hour), Number(parts.minute), Number(parts.second), now.getMilliseconds());
+    } catch (e) {
+      return now;
+    }
+  }
+
+  // Naive house-local datetime string for the service's date_start / date_end.
   _fmtDateStart(d) {
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00:00`;
@@ -170,7 +192,7 @@ class SpypointGalleryCard extends HTMLElement {
 
   // "4pm"; prefixed with weekday ("Sat 4pm") when d isn't today. Used for "Since …".
   _fmtSinceLabel(d) {
-    const now = new Date();
+    const now = this._houseNow();
     const today = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
     return today ? this._fmtHour(d) : `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]} ${this._fmtHour(d)}`;
   }
@@ -179,9 +201,9 @@ class SpypointGalleryCard extends HTMLElement {
   // "Since" anchor is (last poll hour - 2h): from 10:05 to 12:05 it reads "Since 8am".
   // Preceding blocks step back 2h through the day; 8pm-8am is a single overnight block
   // (a night-time anchor yields a partial "8pm-Xam" block first). Then the 24h anchor,
-  // Today, Yesterday, All. Recomputed each render to track the clock.
+  // Today, Yesterday, All. Recomputed each render to track the clock. All in house time.
   _windowOptions() {
-    const now = new Date();
+    const now = this._houseNow();
     const t = new Date(now.getTime() - 5 * 60 * 1000);                 // :05 poll lag
     const lastPoll = new Date(t.getFullYear(), t.getMonth(), t.getDate(), Math.floor(t.getHours() / 2) * 2, 0, 0, 0);
     const cur = new Date(lastPoll); cur.setHours(cur.getHours() - 2);
